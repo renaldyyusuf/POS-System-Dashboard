@@ -120,3 +120,29 @@ export async function getOrderById(id: number): Promise<Order | undefined> {
 export async function updateOrder(id: number, data: Partial<Omit<Order, 'id' | 'created_at' | 'is_synced'>>): Promise<void> {
   await db.orders.update(id, data);
 }
+
+// ─── Sync Queue ───────────────────────────────────────────────────────────────
+
+export async function addToSyncQueue(order_id: number): Promise<void> {
+  const existing = await db.sync_queue.where('order_id').equals(order_id).first();
+  if (!existing) {
+    await db.sync_queue.add({ order_id, created_at: new Date().toISOString(), status: 'pending' });
+  }
+}
+
+export async function getPendingSyncItems(): Promise<SyncQueue[]> {
+  return db.sync_queue.where('status').equals('pending').toArray();
+}
+
+export async function markSyncDone(order_id: number): Promise<void> {
+  await db.orders.update(order_id, { is_synced: true });
+  await db.sync_queue.where('order_id').equals(order_id).modify({ status: 'done' });
+}
+
+export async function markSyncFailed(order_id: number): Promise<void> {
+  await db.sync_queue.where('order_id').equals(order_id).modify({ status: 'failed' });
+}
+
+export async function getPendingSyncCount(): Promise<number> {
+  return db.sync_queue.where('status').equals('pending').count();
+}
