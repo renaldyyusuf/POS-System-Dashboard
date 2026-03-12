@@ -1,81 +1,76 @@
 import { create } from 'zustand';
-import type { Product, OrderItem } from '@/database/db';
+
+export interface CartItem {
+  product_id: number;
+  product_name: string;
+  price: number;
+  portion_size: string;
+  qty: number;
+}
 
 interface CartState {
-  items: OrderItem[];
-  addItem: (product: Product) => void;
-  removeItem: (productId: number) => void;
-  updateQuantity: (productId: number, quantity: number) => void;
+  items: CartItem[];
+  addItem: (product: { id: number; name: string; price: number; portion_size: string }) => void;
+  removeItem: (product_id: number) => void;
+  updateQty: (product_id: number, qty: number) => void;
   clearCart: () => void;
   getSubtotal: () => number;
-  getTax: () => number;
   getTotal: () => number;
 }
 
-const TAX_RATE = 0.08; // 8% tax
-
 export const useCart = create<CartState>((set, get) => ({
   items: [],
-  
+
   addItem: (product) => {
     if (!product.id) return;
-    
     set((state) => {
-      const existingItem = state.items.find(item => item.productId === product.id);
-      if (existingItem) {
+      const existing = state.items.find(item => item.product_id === product.id);
+      if (existing) {
         return {
-          items: state.items.map(item => 
-            item.productId === product.id 
-              ? { ...item, quantity: item.quantity + 1 }
+          items: state.items.map(item =>
+            item.product_id === product.id
+              ? { ...item, qty: item.qty + 1 }
               : item
-          )
+          ),
         };
       }
       return {
-        items: [...state.items, {
-          productId: product.id,
-          name: product.name,
-          price: product.price,
-          quantity: 1
-        }]
+        items: [
+          ...state.items,
+          {
+            product_id: product.id,
+            product_name: product.name,
+            price: product.price,
+            portion_size: product.portion_size,
+            qty: 1,
+          },
+        ],
       };
     });
   },
 
-  removeItem: (productId) => {
+  removeItem: (product_id) => {
     set((state) => ({
-      items: state.items.filter(item => item.productId !== productId)
+      items: state.items.filter(item => item.product_id !== product_id),
     }));
   },
 
-  updateQuantity: (productId, quantity) => {
-    if (quantity <= 0) {
-      get().removeItem(productId);
+  updateQty: (product_id, qty) => {
+    if (qty <= 0) {
+      get().removeItem(product_id);
       return;
     }
-    
     set((state) => ({
-      items: state.items.map(item => 
-        item.productId === productId 
-          ? { ...item, quantity }
-          : item
-      )
+      items: state.items.map(item =>
+        item.product_id === product_id ? { ...item, qty } : item
+      ),
     }));
   },
 
-  clearCart: () => {
-    set({ items: [] });
-  },
+  clearCart: () => set({ items: [] }),
 
-  getSubtotal: () => {
-    return get().items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  },
+  getSubtotal: () =>
+    get().items.reduce((sum, item) => sum + item.price * item.qty, 0),
 
-  getTax: () => {
-    return get().getSubtotal() * TAX_RATE;
-  },
-
-  getTotal: () => {
-    return get().getSubtotal() + get().getTax();
-  }
+  getTotal: () => get().getSubtotal(),
 }));

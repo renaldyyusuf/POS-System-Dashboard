@@ -1,26 +1,34 @@
 import * as XLSX from 'xlsx';
-import { db } from '@/database/db';
+import { db, getOrderItems } from '@/database/db';
 
 export async function exportOrdersToExcel() {
   const orders = await db.orders.toArray();
-  
-  const flattenedData = orders.map(order => ({
-    'Order ID': order.id,
-    'Order Number': order.orderNumber,
-    'Date': new Date(order.createdAt).toLocaleDateString(),
-    'Time': new Date(order.createdAt).toLocaleTimeString(),
-    'Status': order.status,
-    'Payment Method': order.paymentMethod,
-    'Subtotal': order.subtotal,
-    'Tax': order.tax,
-    'Total': order.total,
-    'Items Count': order.items.reduce((sum, item) => sum + item.quantity, 0),
-    'Items Detail': order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')
-  }));
 
-  const worksheet = XLSX.utils.json_to_sheet(flattenedData);
+  const rows: Record<string, unknown>[] = [];
+
+  for (const order of orders) {
+    const items = await getOrderItems(order.id!);
+    rows.push({
+      'Order ID': order.id,
+      'Customer Name': order.customer_name,
+      'Customer Phone': order.customer_phone,
+      'Date': new Date(order.created_at).toLocaleDateString(),
+      'Time': new Date(order.created_at).toLocaleTimeString(),
+      'Status': order.status,
+      'Payment Method': order.payment_method,
+      'Fulfillment': order.fulfillment_method,
+      'Delivery Address': order.delivery_address,
+      'Delivery Notes': order.delivery_notes,
+      'Est. Delivery Fee': order.estimated_delivery_fee,
+      'Notes': order.notes,
+      'Total': order.total,
+      'Void': order.is_void ? 'Yes' : 'No',
+      'Items': items.map(i => `${i.qty}x ${i.product_name}`).join(', '),
+    });
+  }
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
-  
-  XLSX.writeFile(workbook, `POS_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Orders');
+  XLSX.writeFile(workbook, `SmartPOS_Report_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
