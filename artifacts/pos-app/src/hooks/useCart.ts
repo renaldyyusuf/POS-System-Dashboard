@@ -10,26 +10,25 @@ export interface CartItem {
 
 interface CartState {
   items: CartItem[];
-  addItem: (product: { id: number; name: string; price: number; portion_size: string }) => void;
+  addItem: (product: { id: number; name: string; price: number; portion_size: string }, qty?: number) => void;
   removeItem: (product_id: number) => void;
   updateQty: (product_id: number, qty: number) => void;
   clearCart: () => void;
-  getSubtotal: () => number;
   getTotal: () => number;
 }
 
 export const useCart = create<CartState>((set, get) => ({
   items: [],
 
-  addItem: (product) => {
-    if (!product.id) return;
+  addItem: (product, qty = 1) => {
+    if (!product.id || qty <= 0) return;
     set((state) => {
       const existing = state.items.find(item => item.product_id === product.id);
       if (existing) {
         return {
           items: state.items.map(item =>
             item.product_id === product.id
-              ? { ...item, qty: item.qty + 1 }
+              ? { ...item, qty: item.qty + qty }
               : item
           ),
         };
@@ -42,7 +41,7 @@ export const useCart = create<CartState>((set, get) => ({
             product_name: product.name,
             price: product.price,
             portion_size: product.portion_size,
-            qty: 1,
+            qty,
           },
         ],
       };
@@ -69,8 +68,6 @@ export const useCart = create<CartState>((set, get) => ({
 
   clearCart: () => set({ items: [] }),
 
-  getSubtotal: () =>
+  getTotal: () =>
     get().items.reduce((sum, item) => sum + item.price * item.qty, 0),
-
-  getTotal: () => get().getSubtotal(),
 }));
