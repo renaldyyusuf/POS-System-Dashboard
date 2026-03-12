@@ -116,3 +116,7 @@ export async function voidOrder(id: number): Promise<void> {
 export async function getOrderById(id: number): Promise<Order | undefined> {
   return db.orders.get(id);
 }
+
+export async function updateOrder(id: number, data: Partial<Omit<Order, 'id' | 'created_at' | 'is_synced'>>): Promise<void> {
+  await db.orders.update(id, data);
+}
