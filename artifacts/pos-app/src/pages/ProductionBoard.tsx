@@ -1,116 +1,323 @@
+import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, updateOrderStatus, type Order } from "@/database/db";
-import { formatCurrency } from "@/utils/format";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Clock, CheckCircle2, ChefHat, ArrowRight, Truck } from "lucide-react";
+import { db, updateOrderStatus, type Order, type OrderItem } from "@/database/db";
+import { Clock, MapPin, ShoppingBag } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
-const COLUMNS: { id: string; title: string; color: string; icon: React.ElementType }[] = [
-  { id: "pending", title: "Pending", color: "border-l-amber-500", icon: Clock },
-  { id: "in-progress", title: "Preparing", color: "border-l-blue-500", icon: ChefHat },
-  { id: "ready", title: "Ready", color: "border-l-emerald-500", icon: CheckCircle2 },
-  { id: "delivered", title: "Delivered", color: "border-l-slate-500", icon: Truck },
+// ── Column definitions ─────────────────────────────────────────────────────
+
+interface Column {
+  id: string;
+  title: string;
+  dot: string;
+  topBorder: string;
+  headerBg: string;
+  dropActiveBg: string;
+  emptyText: string;
+}
+
+const COLUMNS: Column[] = [
+  {
+    id: "pending",
+    title: "Pending",
+    dot: "bg-amber-400",
+    topBorder: "border-t-amber-400",
+    headerBg: "bg-amber-500/10",
+    dropActiveBg: "bg-amber-500/8 border-amber-400/50",
+    emptyText: "No pending orders",
+  },
+  {
+    id: "in-progress",
+    title: "Processing",
+    dot: "bg-blue-400",
+    topBorder: "border-t-blue-400",
+    headerBg: "bg-blue-500/10",
+    dropActiveBg: "bg-blue-500/8 border-blue-400/50",
+    emptyText: "Nothing in progress",
+  },
+  {
+    id: "ready",
+    title: "Ready",
+    dot: "bg-emerald-400",
+    topBorder: "border-t-emerald-400",
+    headerBg: "bg-emerald-500/10",
+    dropActiveBg: "bg-emerald-500/8 border-emerald-400/50",
+    emptyText: "No orders ready",
+  },
+  {
+    id: "delivered",
+    title: "Picked Up",
+    dot: "bg-slate-400",
+    topBorder: "border-t-slate-400",
+    headerBg: "bg-slate-500/10",
+    dropActiveBg: "bg-slate-500/8 border-slate-400/50",
+    emptyText: "None picked up yet",
+  },
 ];
 
-const NEXT_STATUS: Record<string, string> = {
-  pending: "in-progress",
-  "in-progress": "ready",
-  ready: "delivered",
-};
+// ── Helpers ────────────────────────────────────────────────────────────────
 
-const BUTTON_LABEL: Record<string, string> = {
-  pending: "Start Preparing",
-  "in-progress": "Mark Ready",
-  ready: "Mark Delivered",
-};
+function formatReadyTime(iso: string) {
+  return new Date(iso).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
-export default function ProductionBoard() {
-  const activeOrders = useLiveQuery(() =>
-    db.orders.filter(o => !o.is_void).toArray()
-  ) || [];
+// ── Order Card ─────────────────────────────────────────────────────────────
 
-  const handleAdvance = async (order: Order) => {
-    const next = NEXT_STATUS[order.status];
-    if (next && order.id) {
-      await updateOrderStatus(order.id, next);
-    }
-  };
+function OrderCard({
+  order,
+  items,
+  isDragging,
+  onDragStart,
+}: {
+  order: Order;
+  items: OrderItem[];
+  isDragging: boolean;
+  onDragStart: (e: React.DragEvent, orderId: number) => void;
+}) {
+  const isOjol = order.fulfillment_method === "ojol";
 
   return (
-    <div className="h-full flex flex-col space-y-6 animate-in fade-in duration-500">
-      <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Production Board</h1>
-        <p className="text-muted-foreground mt-1">Live order tracking for kitchen and fulfillment.</p>
+    <div
+      draggable
+      onDragStart={e => onDragStart(e, order.id!)}
+      className={`
+        bg-card border border-border rounded-xl p-3.5 space-y-2.5
+        cursor-grab active:cursor-grabbing select-none
+        transition-all duration-150
+        ${isDragging
+          ? "opacity-30 scale-[0.97]"
+          : "hover:shadow-md hover:border-border/70 shadow-sm"
+        }
+      `}
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <span className="text-primary font-bold text-sm font-mono">#{order.id}</span>
+          <p className="font-semibold text-foreground text-sm leading-snug mt-0.5">
+            {order.customer_name}
+          </p>
+        </div>
+        <span
+          title={isOjol ? "Ojol Delivery" : "Pickup"}
+          className="text-xl leading-none mt-0.5 shrink-0"
+        >
+          {isOjol ? "🛵" : "🏪"}
+        </span>
       </div>
 
-      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 min-h-0">
-        {COLUMNS.map(col => {
-          const colOrders = activeOrders
-            .filter(o => o.status === col.id)
-            .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      {/* Ready time */}
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Clock size={11} />
+        <span>
+          Ready {formatReadyTime(order.ready_date || order.created_at)}
+          {" · "}
+          <span className="opacity-70">
+            {formatDistanceToNow(new Date(order.ready_date || order.created_at), { addSuffix: true })}
+          </span>
+        </span>
+      </div>
 
-          return (
-            <div key={col.id} className="flex flex-col bg-secondary/30 rounded-2xl p-4 border border-border/50 min-h-[300px]">
-              <div className="flex items-center justify-between mb-4 px-1">
-                <div className="flex items-center gap-2">
-                  <col.icon size={16} className="text-muted-foreground" />
-                  <h2 className="font-bold text-base">{col.title}</h2>
-                </div>
-                <span className="bg-background text-muted-foreground text-xs font-bold px-2 py-0.5 rounded-md border border-border">
-                  {colOrders.length}
-                </span>
-              </div>
-
-              <div className="flex-1 overflow-y-auto space-y-3 scrollbar-hide">
-                {colOrders.map(order => (
-                  <Card key={order.id} className={`bg-card border-border shadow-md border-l-4 ${col.color}`}>
-                    <CardHeader className="p-3 pb-2 space-y-0">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <span className="font-bold text-primary text-sm">#{order.id}</span>
-                          <p className="text-xs font-medium text-foreground mt-0.5">{order.customer_name}</p>
-                        </div>
-                        <span className="text-xs bg-secondary text-muted-foreground px-2 py-0.5 rounded-full capitalize">
-                          {order.fulfillment_method}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                        <Clock size={10} />
-                        {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-3 pt-0">
-                      <p className="text-sm font-bold text-primary mb-3">{formatCurrency(order.total)}</p>
-                      {order.notes && (
-                        <p className="text-xs text-muted-foreground bg-secondary/50 rounded-md px-2 py-1 mb-3 italic">
-                          {order.notes}
-                        </p>
-                      )}
-                      {NEXT_STATUS[col.id] && (
-                        <Button
-                          className="w-full font-semibold text-xs h-8"
-                          variant={col.id === "ready" ? "default" : "secondary"}
-                          onClick={() => handleAdvance(order)}
-                          size="sm"
-                        >
-                          {BUTTON_LABEL[col.id]}
-                          <ArrowRight size={13} className="ml-1.5" />
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-
-                {colOrders.length === 0 && (
-                  <div className="h-24 flex items-center justify-center border-2 border-dashed border-border/40 rounded-xl text-muted-foreground/40 text-xs font-medium">
-                    No orders {col.title.toLowerCase()}
-                  </div>
-                )}
-              </div>
+      {/* Items summary */}
+      {items.length > 0 && (
+        <div className="space-y-0.5 border-t border-border/40 pt-2">
+          {items.slice(0, 3).map((item, i) => (
+            <div key={i} className="flex gap-2 text-xs text-muted-foreground">
+              <span className="font-bold text-foreground/60 w-4 shrink-0 tabular-nums text-right">
+                {item.qty}×
+              </span>
+              <span className="truncate">{item.product_name}</span>
             </div>
-          );
-        })}
+          ))}
+          {items.length > 3 && (
+            <p className="text-xs text-muted-foreground/50 pl-6">
+              +{items.length - 3} more item{items.length - 3 !== 1 ? "s" : ""}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Delivery address — Ojol only */}
+      {isOjol && order.delivery_address && (
+        <div className="flex gap-1.5 items-start bg-orange-500/8 border border-orange-500/20 rounded-lg px-2.5 py-1.5">
+          <MapPin size={11} className="text-orange-400 mt-0.5 shrink-0" />
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+            {order.delivery_address}
+          </p>
+        </div>
+      )}
+
+      {/* Fulfillment badge */}
+      <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full border ${
+        isOjol
+          ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+          : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+      }`}>
+        {isOjol ? "🛵" : <ShoppingBag size={10} />}
+        {isOjol ? "Ojol Delivery" : "Ambil Sendiri"}
+      </span>
+    </div>
+  );
+}
+
+// ── Droppable Column ───────────────────────────────────────────────────────
+
+function KanbanColumn({
+  col,
+  orders,
+  allItems,
+  draggingId,
+  onDragStart,
+  onDrop,
+}: {
+  col: Column;
+  orders: Order[];
+  allItems: OrderItem[];
+  draggingId: number | null;
+  onDragStart: (e: React.DragEvent, orderId: number) => void;
+  onDrop: (colId: string) => void;
+}) {
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const getItems = (orderId: number) => allItems.filter(i => i.order_id === orderId);
+
+  return (
+    <div className="flex flex-col min-h-0">
+      {/* Column header */}
+      <div className={`flex items-center justify-between px-3 py-2.5 rounded-xl border-t-2 border-x border-b border-border ${col.topBorder} ${col.headerBg} mb-3`}>
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${col.dot}`} />
+          <h2 className="font-bold text-sm text-foreground">{col.title}</h2>
+        </div>
+        <span className="text-xs font-bold text-muted-foreground bg-background/70 px-2 py-0.5 rounded-full border border-border/50">
+          {orders.length}
+        </span>
+      </div>
+
+      {/* Drop zone */}
+      <div
+        onDragOver={e => { e.preventDefault(); setIsDragOver(true); }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={() => { setIsDragOver(false); onDrop(col.id); }}
+        className={`
+          flex-1 min-h-[200px] rounded-xl border-2 border-dashed p-2 space-y-2.5 overflow-y-auto
+          transition-colors duration-150
+          ${isDragOver
+            ? `${col.dropActiveBg} border-opacity-100`
+            : "border-border/30 bg-secondary/15"
+          }
+        `}
+      >
+        {orders.length === 0 && !isDragOver && (
+          <div className="h-full min-h-[140px] flex items-center justify-center text-xs text-muted-foreground/30 font-medium">
+            {col.emptyText}
+          </div>
+        )}
+
+        {isDragOver && orders.length === 0 && (
+          <div className="h-full min-h-[140px] flex items-center justify-center text-xs font-semibold text-primary/60">
+            Drop here →
+          </div>
+        )}
+
+        {orders.map(order => (
+          <OrderCard
+            key={order.id}
+            order={order}
+            items={getItems(order.id!)}
+            isDragging={draggingId === order.id}
+            onDragStart={onDragStart}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────
+
+export default function ProductionBoard() {
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+
+  const orders = useLiveQuery(() =>
+    db.orders.filter(o => !o.is_void).toArray()
+  ) ?? [];
+
+  const allItems = useLiveQuery(() =>
+    db.order_items.toArray()
+  ) ?? [];
+
+  const handleDragStart = (e: React.DragEvent, orderId: number) => {
+    setDraggingId(orderId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("orderId", String(orderId));
+  };
+
+  const handleDrop = async (colId: string) => {
+    if (draggingId === null) return;
+    const order = orders.find(o => o.id === draggingId);
+    if (order && order.status !== colId) {
+      await updateOrderStatus(draggingId, colId);
+    }
+    setDraggingId(null);
+  };
+
+  const getColumnOrders = (colId: string) =>
+    orders
+      .filter(o => o.status === colId)
+      .sort((a, b) =>
+        new Date(a.ready_date || a.created_at).getTime() -
+        new Date(b.ready_date || b.created_at).getTime()
+      );
+
+  const totalActive = orders.filter(o => o.status !== "delivered").length;
+
+  return (
+    <div
+      className="h-full flex flex-col gap-5 animate-in fade-in duration-500"
+      onDragEnd={() => setDraggingId(null)}
+    >
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3 shrink-0">
+        <div>
+          <h1 className="text-3xl font-display font-bold text-foreground">Production Board</h1>
+          <p className="text-muted-foreground mt-1">
+            Drag order cards between columns to update their status.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+          {totalActive > 0 && (
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              <span>{totalActive} active order{totalActive !== 1 ? "s" : ""}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-4 text-xs text-muted-foreground border border-border/40 rounded-lg px-3 py-1.5 bg-secondary/30">
+            <span className="flex items-center gap-1.5">🏪 <span>Pickup (Ambil Sendiri)</span></span>
+            <span className="w-px h-3 bg-border" />
+            <span className="flex items-center gap-1.5">🛵 <span>Ojol Delivery</span></span>
+          </div>
+        </div>
+      </div>
+
+      {/* Board */}
+      <div className="flex-1 min-h-0 overflow-x-auto pb-2">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 h-full min-w-[600px] min-h-[400px]">
+          {COLUMNS.map(col => (
+            <KanbanColumn
+              key={col.id}
+              col={col}
+              orders={getColumnOrders(col.id)}
+              allItems={allItems}
+              draggingId={draggingId}
+              onDragStart={handleDragStart}
+              onDrop={handleDrop}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
