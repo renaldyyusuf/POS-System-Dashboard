@@ -1,0 +1,14 @@
+packages:
+  "dexie-react-hooks": "React hooks for Dexie.js to use live queries"
+  "zustand": "Simple and fast state management for the POS cart"
+  "date-fns": "For formatting dates and times in the UI"
+  "recharts": "For rendering beautiful charts in the dashboard and reports"
+  "framer-motion": "For smooth layout animations and micro-interactions"
+  "lucide-react": "Beautiful consistent icons"
+
+images: []
+
+notes:
+  - The application is fully offline-first using Dexie.js (IndexedDB).
+  - No backend API calls are made. All data operations use the local Dexie instance.
+  - The cart state is managed in memory using Zustand.
