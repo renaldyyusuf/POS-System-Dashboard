@@ -59,7 +59,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </header>
 
           {/* Main content — extra bottom padding on mobile for bottom nav */}
-          <main className="flex-1 overflow-auto bg-background p-3 md:p-6 lg:p-8 pb-20 md:pb-6 lg:pb-8">
+          <main className="flex-1 overflow-auto bg-background p-3 md:p-6 lg:p-8 pb-28 md:pb-6 lg:pb-8">
             <div className="max-w-7xl mx-auto w-full h-full">
               {children}
             </div>
