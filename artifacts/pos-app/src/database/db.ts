@@ -40,6 +40,7 @@ export interface SyncQueue {
   order_id: number;
   created_at: string;
   status: string;
+  action?: 'insert' | 'update'; // 'update' = edit existing, triggers delete+rewrite in GAS
 }
 
 export interface StoreSettings {
@@ -201,9 +202,9 @@ export async function replaceOrderItems(
 export async function requeueOrderSync(order_id: number): Promise<void> {
   const existing = await db.sync_queue.where('order_id').equals(order_id).first();
   if (existing) {
-    await db.sync_queue.where('order_id').equals(order_id).modify({ status: 'pending' });
+    await db.sync_queue.where('order_id').equals(order_id).modify({ status: 'pending', action: 'update' });
   } else {
-    await db.sync_queue.add({ order_id, created_at: new Date().toISOString(), status: 'pending' });
+    await db.sync_queue.add({ order_id, created_at: new Date().toISOString(), status: 'pending', action: 'update' });
   }
   await db.orders.update(order_id, { is_synced: false });
 }
