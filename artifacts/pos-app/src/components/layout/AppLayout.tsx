@@ -59,7 +59,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </header>
 
           {/* Main content — extra bottom padding on mobile for bottom nav */}
-          <main className="flex-1 overflow-auto bg-background p-3 md:p-6 lg:p-8 pb-28 md:pb-6 lg:pb-8">
+          <main className="flex-1 overflow-y-auto bg-background p-3 md:p-6 lg:p-8 pb-36 md:pb-8">
             <div className="max-w-7xl mx-auto w-full h-full">
               {children}
             </div>
@@ -68,7 +68,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </div>
 
       {/* Bottom nav — mobile only */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border flex items-stretch">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border flex items-stretch" style={{paddingBottom: "env(safe-area-inset-bottom)"}}>
         {bottomNav.map(item => {
           const isActive = item.url ? location === item.url : moreMenu.some(m => m.url === location);
           if (!item.url) {
