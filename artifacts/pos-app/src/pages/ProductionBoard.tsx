@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, updateOrderStatus, type Order, type OrderItem } from "@/database/db";
+import { updateOrderStatus, type Order, type OrderItem } from "@/database/db";
 import { Clock, MapPin, ShoppingBag } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
