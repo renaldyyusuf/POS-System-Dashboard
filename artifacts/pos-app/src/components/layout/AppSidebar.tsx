@@ -6,7 +6,8 @@ import {
   ClipboardList,
   KanbanSquare,
   BarChart3,
-  Coffee
+  Coffee,
+  Settings,
 } from "lucide-react";
 import {
   Sidebar,
@@ -27,6 +28,7 @@ const navItems = [
   { title: "Orders", url: "/orders", icon: ClipboardList },
   { title: "Production Board", url: "/production", icon: KanbanSquare },
   { title: "Reports", url: "/reports", icon: BarChart3 },
+  { title: "Store Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {

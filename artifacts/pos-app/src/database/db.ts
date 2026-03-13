@@ -42,11 +42,25 @@ export interface SyncQueue {
   status: string;
 }
 
+export interface StoreSettings {
+  id?: number;
+  store_name: string;
+  phone_number: string;
+  store_address: string;
+  bank_name: string;
+  bank_account_number: string;
+  bank_account_holder: string;
+  additional_notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export class SmartPOSDatabase extends Dexie {
   products!: Table<Product, number>;
   orders!: Table<Order, number>;
   order_items!: Table<OrderItem, number>;
   sync_queue!: Table<SyncQueue, number>;
+  store_settings!: Table<StoreSettings, number>;
 
   constructor() {
     super('smartpos_db');
@@ -55,6 +69,13 @@ export class SmartPOSDatabase extends Dexie {
       orders: '++id, customer_name, customer_phone, created_at, ready_date, payment_method, total, status, fulfillment_method, is_void, is_synced',
       order_items: '++id, order_id, product_name, qty, price, subtotal',
       sync_queue: '++id, order_id, created_at, status',
+    });
+    this.version(2).stores({
+      products: '++id, name, price, portion_size, created_at',
+      orders: '++id, customer_name, customer_phone, created_at, ready_date, payment_method, total, status, fulfillment_method, is_void, is_synced',
+      order_items: '++id, order_id, product_name, qty, price, subtotal',
+      sync_queue: '++id, order_id, created_at, status',
+      store_settings: '++id',
     });
   }
 }

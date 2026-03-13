@@ -12,6 +12,7 @@ import Products from "@/pages/Products";
 import Orders from "@/pages/Orders";
 import ProductionBoard from "@/pages/ProductionBoard";
 import Reports from "@/pages/Reports";
+import StoreSettings from "@/pages/StoreSettings";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/orders" component={Orders} />
       <Route path="/production" component={ProductionBoard} />
       <Route path="/reports" component={Reports} />
+      <Route path="/settings" component={StoreSettings} />
       <Route component={NotFound} />
     </Switch>
   );
