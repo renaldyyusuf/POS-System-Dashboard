@@ -22,13 +22,13 @@ import {
 } from "@/components/ui/sidebar";
 
 const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Cashier", url: "/cashier", icon: ShoppingCart },
-  { title: "Products", url: "/products", icon: Package },
-  { title: "Orders", url: "/orders", icon: ClipboardList },
-  { title: "Production Board", url: "/production", icon: KanbanSquare },
-  { title: "Reports", url: "/reports", icon: BarChart3 },
-  { title: "Store Settings", url: "/settings", icon: Settings },
+  { title: "Dashboard",       url: "/",           icon: LayoutDashboard },
+  { title: "Kasir",           url: "/cashier",     icon: ShoppingCart },
+  { title: "Produk",          url: "/products",    icon: Package },
+  { title: "Pesanan",         url: "/orders",      icon: ClipboardList },
+  { title: "Papan Produksi",  url: "/production",  icon: KanbanSquare },
+  { title: "Laporan",         url: "/reports",     icon: BarChart3 },
+  { title: "Pengaturan Toko", url: "/settings",    icon: Settings },
 ];
 
 export function AppSidebar() {
@@ -46,11 +46,11 @@ export function AppSidebar() {
           </span>
         </div>
       </SidebarHeader>
-      
+
       <SidebarContent className="p-4">
         <SidebarGroup>
           <SidebarGroupLabel className="text-muted-foreground font-medium mb-2 px-2 text-xs uppercase tracking-wider">
-            Application
+            Aplikasi
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-1.5">
@@ -58,13 +58,13 @@ export function AppSidebar() {
                 const isActive = location === item.url;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton 
-                      asChild 
+                    <SidebarMenuButton
+                      asChild
                       isActive={isActive}
                       className={`
                         h-11 rounded-xl px-4 transition-all duration-200
-                        ${isActive 
-                          ? 'bg-primary/10 text-primary font-medium hover:bg-primary/15' 
+                        ${isActive
+                          ? 'bg-primary/10 text-primary font-medium hover:bg-primary/15'
                           : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
                         }
                       `}

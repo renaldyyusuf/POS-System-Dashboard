@@ -4,7 +4,7 @@ import {
   db, getOrderItems, voidOrder, updateOrder,
   type Order, type OrderItem,
 } from "@/database/db";
-import { formatCurrency } from "@/utils/format";
+import { formatCurrency, formatDateTime } from "@/utils/format";
 import {
   FileText, Search, Eye, Pencil, Ban, ShoppingBag, Bike,
   User, Phone, Calendar, CreditCard, StickyNote, MapPin,
@@ -34,14 +34,14 @@ import { useToast } from "@/hooks/use-toast";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type FilterTab = "all" | "pickup" | "ojol";
-type PaymentMethod = "Transfer" | "QRIS";
+type PaymentMethod = "Transfer Bank" | "QRIS";
 type FulfillmentMethod = "pickup" | "ojol";
 
 interface EditForm {
   customer_name: string;
   customer_phone: string;
   ready_date: string;
-  payment_method: PaymentMethod;
+  payment_method: string;
   fulfillment_method: FulfillmentMethod;
   delivery_address: string;
   delivery_notes: string;
@@ -53,30 +53,31 @@ interface EditForm {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
-  pending:     "bg-secondary text-muted-foreground border-border",
+  pending:       "bg-secondary text-muted-foreground border-border",
   "in-progress": "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  ready:       "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  delivered:   "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  void:        "bg-destructive/10 text-destructive border-destructive/20",
+  ready:         "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  delivered:     "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  void:          "bg-destructive/10 text-destructive border-destructive/20",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  pending:       "Menunggu",
+  "in-progress": "Diproses",
+  ready:         "Siap",
+  delivered:     "Selesai",
+  void:          "Dibatalkan",
 };
 
 const FULFILLMENT_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
   pickup: { label: "Ambil Sendiri", icon: <ShoppingBag size={12} /> },
-  ojol:   { label: "Ojol Delivery", icon: <Bike size={12} /> },
+  ojol:   { label: "Diantar (Ojol)", icon: <Bike size={12} /> },
 };
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
 
 function StatusBadge({ order }: { order: Order }) {
   const key = order.is_void ? "void" : order.status;
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide border ${STATUS_STYLES[key] ?? STATUS_STYLES.pending}`}>
-      {key}
+      {STATUS_LABELS[key] ?? key}
     </span>
   );
 }
@@ -90,7 +91,16 @@ function FulfillmentBadge({ method }: { method: string }) {
   );
 }
 
-// ── View Details Modal ─────────────────────────────────────────────────────
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">{icon} {label}</p>
+      <p className="text-sm font-medium">{value}</p>
+    </div>
+  );
+}
+
+// ── View Modal ─────────────────────────────────────────────────────────────
 
 function ViewModal({ order, onClose }: { order: Order; onClose: () => void }) {
   const items = useLiveQuery(() => order.id ? getOrderItems(order.id) : [], [order.id]) ?? [];
@@ -100,64 +110,59 @@ function ViewModal({ order, onClose }: { order: Order; onClose: () => void }) {
       <DialogContent className="sm:max-w-[520px] bg-card border-border max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2">
-            Order #{order.id}
+            Pesanan #{order.id}
             <StatusBadge order={order} />
           </DialogTitle>
-          <DialogDescription>Created {formatDate(order.created_at)}</DialogDescription>
+          <DialogDescription>Dibuat {formatDateTime(order.created_at)}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Customer info */}
           <div className="grid grid-cols-2 gap-3">
-            <InfoRow icon={<User size={13} />} label="Customer" value={order.customer_name} />
+            <InfoRow icon={<User size={13} />}     label="Pelanggan"      value={order.customer_name} />
             {order.customer_phone && (
-              <InfoRow icon={<Phone size={13} />} label="Phone" value={order.customer_phone} />
+              <InfoRow icon={<Phone size={13} />}  label="No. Telepon"    value={order.customer_phone} />
             )}
-            <InfoRow icon={<Calendar size={13} />} label="Ready Date" value={formatDate(order.ready_date)} />
-            <InfoRow icon={<CreditCard size={13} />} label="Payment" value={order.payment_method} />
+            <InfoRow icon={<Calendar size={13} />} label="Tanggal Siap"   value={formatDateTime(order.ready_date)} />
+            <InfoRow icon={<CreditCard size={13} />} label="Pembayaran"   value={order.payment_method} />
           </div>
 
-          {/* Fulfillment */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Fulfillment</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Metode Pengambilan</p>
             <FulfillmentBadge method={order.fulfillment_method} />
           </div>
 
-          {/* Ojol delivery details */}
           {order.fulfillment_method === "ojol" && (
             <div className="rounded-xl border border-border/60 bg-background/50 p-3 space-y-2">
               {order.delivery_address && (
-                <InfoRow icon={<MapPin size={13} />} label="Address" value={order.delivery_address} />
+                <InfoRow icon={<MapPin size={13} />}        label="Alamat Pengiriman"  value={order.delivery_address} />
               )}
               {order.delivery_notes && (
-                <InfoRow icon={<MessageSquare size={13} />} label="Delivery Notes" value={order.delivery_notes} />
+                <InfoRow icon={<MessageSquare size={13} />} label="Catatan Pengiriman" value={order.delivery_notes} />
               )}
               <InfoRow
                 icon={<Bike size={13} />}
-                label="Est. Delivery Fee"
+                label="Est. Ongkos Kirim"
                 value={formatCurrency(order.estimated_delivery_fee)}
               />
             </div>
           )}
 
-          {/* Notes */}
           {order.notes && (
-            <InfoRow icon={<StickyNote size={13} />} label="Order Notes" value={order.notes} />
+            <InfoRow icon={<StickyNote size={13} />} label="Catatan Pesanan" value={order.notes} />
           )}
 
           <Separator />
 
-          {/* Order items */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Items</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Item Pesanan</p>
             <div className="space-y-1.5">
               {items.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No items.</p>
+                <p className="text-sm text-muted-foreground">Belum ada item.</p>
               ) : (
                 <>
                   <div className="grid grid-cols-[1fr_auto_auto] text-xs text-muted-foreground font-medium px-2 pb-1 uppercase tracking-wider">
-                    <span>Product</span>
-                    <span className="text-right pr-6">Qty</span>
+                    <span>Produk</span>
+                    <span className="text-right pr-6">Jml</span>
                     <span className="text-right">Subtotal</span>
                   </div>
                   {items.map((item, i) => (
@@ -174,17 +179,16 @@ function ViewModal({ order, onClose }: { order: Order; onClose: () => void }) {
 
           <Separator />
 
-          {/* Total breakdown */}
           <div className="space-y-1.5 text-sm">
             <div className="flex justify-between text-muted-foreground">
-              <span>Items subtotal</span>
+              <span>Subtotal</span>
               <span className="tabular-nums">
                 {formatCurrency(order.total - (order.fulfillment_method === "ojol" ? order.estimated_delivery_fee : 0))}
               </span>
             </div>
             {order.fulfillment_method === "ojol" && (
               <div className="flex justify-between text-muted-foreground">
-                <span>Delivery fee</span>
+                <span>Ongkos kirim</span>
                 <span className="tabular-nums">{formatCurrency(order.estimated_delivery_fee)}</span>
               </div>
             )}
@@ -196,26 +200,17 @@ function ViewModal({ order, onClose }: { order: Order; onClose: () => void }) {
             </div>
             {order.is_void && (
               <p className="text-xs text-destructive flex items-center gap-1">
-                <Ban size={11} /> This order has been voided and excluded from sales totals.
+                <Ban size={11} /> Pesanan ini telah dibatalkan dan tidak dihitung dalam total penjualan.
               </p>
             )}
           </div>
         </div>
 
         <DialogFooter>
-          <Button onClick={onClose}>Close</Button>
+          <Button onClick={onClose}>Tutup</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">{icon} {label}</p>
-      <p className="text-sm font-medium">{value}</p>
-    </div>
   );
 }
 
@@ -225,16 +220,16 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState<EditForm>({
-    customer_name: order.customer_name,
-    customer_phone: order.customer_phone,
-    ready_date: order.ready_date ? order.ready_date.slice(0, 16) : new Date().toISOString().slice(0, 16),
-    payment_method: (order.payment_method as PaymentMethod) ?? "Transfer",
-    fulfillment_method: (order.fulfillment_method as FulfillmentMethod) ?? "pickup",
-    delivery_address: order.delivery_address ?? "",
-    delivery_notes: order.delivery_notes ?? "",
+    customer_name:          order.customer_name,
+    customer_phone:         order.customer_phone,
+    ready_date:             order.ready_date ? order.ready_date.slice(0, 16) : new Date().toISOString().slice(0, 16),
+    payment_method:         order.payment_method ?? "Transfer Bank",
+    fulfillment_method:     (order.fulfillment_method as FulfillmentMethod) ?? "pickup",
+    delivery_address:       order.delivery_address ?? "",
+    delivery_notes:         order.delivery_notes ?? "",
     estimated_delivery_fee: order.estimated_delivery_fee ?? 0,
-    notes: order.notes ?? "",
-    status: order.status ?? "pending",
+    notes:                  order.notes ?? "",
+    status:                 order.status ?? "pending",
   });
 
   const set = <K extends keyof EditForm>(key: K, val: EditForm[K]) =>
@@ -245,21 +240,21 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
     setIsSaving(true);
     try {
       await updateOrder(order.id, {
-        customer_name: form.customer_name || "Walk-in",
-        customer_phone: form.customer_phone,
-        ready_date: new Date(form.ready_date).toISOString(),
-        payment_method: form.payment_method,
-        fulfillment_method: form.fulfillment_method,
-        delivery_address: form.fulfillment_method === "ojol" ? form.delivery_address : "",
-        delivery_notes: form.fulfillment_method === "ojol" ? form.delivery_notes : "",
+        customer_name:          form.customer_name || "Walk-in",
+        customer_phone:         form.customer_phone,
+        ready_date:             new Date(form.ready_date).toISOString(),
+        payment_method:         form.payment_method,
+        fulfillment_method:     form.fulfillment_method,
+        delivery_address:       form.fulfillment_method === "ojol" ? form.delivery_address : "",
+        delivery_notes:         form.fulfillment_method === "ojol" ? form.delivery_notes : "",
         estimated_delivery_fee: form.fulfillment_method === "ojol" ? (form.estimated_delivery_fee || 0) : 0,
-        notes: form.notes,
-        status: form.status,
+        notes:                  form.notes,
+        status:                 form.status,
       });
-      toast({ title: "Order updated", description: `Order #${order.id} has been saved.` });
+      toast({ title: "Pesanan diperbarui", description: `Pesanan #${order.id} telah disimpan.` });
       onClose();
     } catch {
-      toast({ title: "Failed to update order", variant: "destructive" });
+      toast({ title: "Gagal memperbarui pesanan", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
@@ -269,26 +264,24 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
     <Dialog open onOpenChange={open => !open && onClose()}>
       <DialogContent className="sm:max-w-[500px] bg-card border-border max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold">Edit Order #{order.id}</DialogTitle>
-          <DialogDescription>Update order details below.</DialogDescription>
+          <DialogTitle className="text-xl font-bold">Edit Pesanan #{order.id}</DialogTitle>
+          <DialogDescription>Perbarui detail pesanan di bawah.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Customer */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-xs">Customer Name</Label>
+              <Label className="text-xs">Nama Customer</Label>
               <Input className="bg-background border-border h-9 text-sm" placeholder="Walk-in"
                 value={form.customer_name} onChange={e => set("customer_name", e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Phone</Label>
-              <Input className="bg-background border-border h-9 text-sm" placeholder="Optional" type="tel"
+              <Label className="text-xs">No. Telepon</Label>
+              <Input className="bg-background border-border h-9 text-sm" placeholder="Opsional" type="tel"
                 value={form.customer_phone} onChange={e => set("customer_phone", e.target.value)} />
             </div>
           </div>
 
-          {/* Status */}
           <div className="space-y-1.5">
             <Label className="text-xs">Status</Label>
             <Select value={form.status} onValueChange={val => set("status", val)}>
@@ -296,40 +289,42 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-card border-border">
-                {["pending", "in-progress", "ready", "delivered"].map(s => (
-                  <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>
+                {[
+                  { value: "pending",     label: "Menunggu" },
+                  { value: "in-progress", label: "Diproses" },
+                  { value: "ready",       label: "Siap" },
+                  { value: "delivered",   label: "Selesai" },
+                ].map(s => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Ready date */}
           <div className="space-y-1.5">
-            <Label className="text-xs">Ready Date & Time</Label>
+            <Label className="text-xs">Tanggal &amp; Waktu Siap</Label>
             <Input type="datetime-local" className="bg-background border-border h-9 text-sm"
               value={form.ready_date} onChange={e => set("ready_date", e.target.value)} />
           </div>
 
-          {/* Payment */}
           <div className="space-y-1.5">
-            <Label className="text-xs">Payment Method</Label>
+            <Label className="text-xs">Metode Pembayaran</Label>
             <div className="grid grid-cols-2 gap-2">
-              {(["Transfer", "QRIS"] as PaymentMethod[]).map(m => (
+              {(["Transfer Bank", "QRIS"] as PaymentMethod[]).map(m => (
                 <button key={m} type="button" onClick={() => set("payment_method", m)}
                   className={`py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
                     form.payment_method === m
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border bg-background text-muted-foreground hover:border-primary/40"
                   }`}>
-                  {m === "Transfer" ? "💳 Transfer" : "📱 QRIS"}
+                  {m === "Transfer Bank" ? "💳 Transfer Bank" : "📱 QRIS"}
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Fulfillment */}
           <div className="space-y-1.5">
-            <Label className="text-xs">Fulfillment Method</Label>
+            <Label className="text-xs">Metode Pengambilan</Label>
             <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={() => set("fulfillment_method", "pickup")}
                 className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
@@ -345,28 +340,27 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border bg-background text-muted-foreground hover:border-primary/40"
                 }`}>
-                <Bike size={14} /> Ojol
+                <Bike size={14} /> Diantar (Ojol)
               </button>
             </div>
           </div>
 
-          {/* Ojol fields */}
           {form.fulfillment_method === "ojol" && (
             <div className="space-y-3 rounded-xl border border-border/60 bg-background/50 p-3">
               <div className="space-y-1.5">
-                <Label className="text-xs">Delivery Address</Label>
+                <Label className="text-xs">Alamat Pengiriman</Label>
                 <Textarea className="bg-background border-border text-sm resize-none min-h-[70px]"
-                  placeholder="Enter address..." value={form.delivery_address}
+                  placeholder="Masukkan alamat..." value={form.delivery_address}
                   onChange={e => set("delivery_address", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Delivery Notes</Label>
+                <Label className="text-xs">Catatan Pengiriman</Label>
                 <Input className="bg-background border-border h-9 text-sm"
-                  placeholder="e.g. Leave at door" value={form.delivery_notes}
+                  placeholder="cth. Taruh di depan pintu" value={form.delivery_notes}
                   onChange={e => set("delivery_notes", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Estimated Delivery Fee</Label>
+                <Label className="text-xs">Est. Ongkos Kirim</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
                   <Input type="number" min="0" className="bg-background border-border h-9 text-sm pl-9"
@@ -377,19 +371,18 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
             </div>
           )}
 
-          {/* Notes */}
           <div className="space-y-1.5">
-            <Label className="text-xs">Order Notes</Label>
+            <Label className="text-xs">Catatan Pesanan</Label>
             <Textarea className="bg-background border-border text-sm resize-none min-h-[60px]"
-              placeholder="Special instructions..." value={form.notes}
+              placeholder="Instruksi khusus..." value={form.notes}
               onChange={e => set("notes", e.target.value)} />
           </div>
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>Batal</Button>
           <Button className="font-bold min-w-[100px]" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save Changes"}
+            {isSaving ? "Menyimpan..." : "Simpan"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -401,8 +394,8 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
 
 export default function Orders() {
   const { toast } = useToast();
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<FilterTab>("all");
+  const [search, setSearch]       = useState("");
+  const [filter, setFilter]       = useState<FilterTab>("all");
   const [viewOrder, setViewOrder] = useState<Order | null>(null);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [voidTarget, setVoidTarget] = useState<Order | null>(null);
@@ -418,7 +411,7 @@ export default function Orders() {
     const matchesFilter =
       filter === "all" ||
       (filter === "pickup" && o.fulfillment_method === "pickup") ||
-      (filter === "ojol" && o.fulfillment_method === "ojol");
+      (filter === "ojol"   && o.fulfillment_method === "ojol");
     return matchesSearch && matchesFilter;
   });
 
@@ -426,34 +419,31 @@ export default function Orders() {
     if (!voidTarget?.id) return;
     await voidOrder(voidTarget.id);
     toast({
-      title: "Order voided",
-      description: `Order #${voidTarget.id} has been voided and excluded from sales totals.`,
+      title: "Pesanan dibatalkan",
+      description: `Pesanan #${voidTarget.id} telah dibatalkan dan tidak dihitung dalam total penjualan.`,
     });
     setVoidTarget(null);
   };
 
   const tabs: { key: FilterTab; label: string; icon: React.ReactNode }[] = [
-    { key: "all",    label: "All Orders",    icon: <FileText size={13} /> },
-    { key: "pickup", label: "Pickup",         icon: <ShoppingBag size={13} /> },
-    { key: "ojol",   label: "Ojol Delivery",  icon: <Bike size={13} /> },
+    { key: "all",    label: "Semua Pesanan", icon: <FileText size={13} /> },
+    { key: "pickup", label: "Ambil Sendiri", icon: <ShoppingBag size={13} /> },
+    { key: "ojol",   label: "Diantar (Ojol)", icon: <Bike size={13} /> },
   ];
 
   const tabCount = (key: FilterTab) =>
-    key === "all" ? orders.length :
+    key === "all"    ? orders.length :
     key === "pickup" ? orders.filter(o => o.fulfillment_method === "pickup").length :
     orders.filter(o => o.fulfillment_method === "ojol").length;
 
   return (
     <div className="space-y-5 animate-in fade-in duration-500">
-      {/* Header */}
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Orders</h1>
-        <p className="text-muted-foreground mt-1">View, manage, and track all customer orders.</p>
+        <h1 className="text-3xl font-display font-bold text-foreground">Pesanan</h1>
+        <p className="text-muted-foreground mt-1">Lihat, kelola, dan pantau semua pesanan pelanggan.</p>
       </div>
 
-      {/* Filter tabs + search */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-        {/* Tabs */}
         <div className="flex items-center bg-secondary/60 rounded-xl p-1 gap-0.5 border border-border">
           {tabs.map(tab => (
             <button
@@ -476,11 +466,10 @@ export default function Orders() {
           ))}
         </div>
 
-        {/* Search */}
         <div className="relative w-full sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by name or order ID..."
+            placeholder="Cari nama atau no. pesanan..."
             className="pl-9 bg-card border-border"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -488,19 +477,18 @@ export default function Orders() {
         </div>
       </div>
 
-      {/* Table */}
       <Card className="bg-card border-border shadow-xl shadow-black/10 overflow-hidden">
         <Table>
           <TableHeader className="bg-secondary/50">
             <TableRow className="border-border/50 hover:bg-transparent">
-              <TableHead className="pl-5 w-20">Order #</TableHead>
-              <TableHead>Customer</TableHead>
-              <TableHead>Ready Date</TableHead>
-              <TableHead>Fulfillment</TableHead>
-              <TableHead>Payment</TableHead>
+              <TableHead className="pl-5 w-20">No.</TableHead>
+              <TableHead>Pelanggan</TableHead>
+              <TableHead>Tanggal Siap</TableHead>
+              <TableHead>Pengambilan</TableHead>
+              <TableHead>Pembayaran</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Total</TableHead>
-              <TableHead className="text-right pr-5 w-36">Actions</TableHead>
+              <TableHead className="text-right pr-5 w-36">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -510,9 +498,11 @@ export default function Orders() {
                   <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
                     <FileText className="h-12 w-12 opacity-15" />
                     <div>
-                      <p className="font-medium">No orders found</p>
+                      <p className="font-medium">Pesanan tidak ditemukan</p>
                       <p className="text-sm mt-1">
-                        {search ? "Try a different search term." : "Orders will appear here once created."}
+                        {search
+                          ? "Coba kata kunci lain."
+                          : "Pesanan akan muncul setelah dibuat."}
                       </p>
                     </div>
                   </div>
@@ -534,43 +524,39 @@ export default function Orders() {
 
         {filtered.length > 0 && (
           <div className="px-5 py-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
-            <span>{filtered.length} order{filtered.length !== 1 ? "s" : ""} shown</span>
-            <span>
-              {filtered.filter(o => o.is_void).length} voided
-            </span>
+            <span>{filtered.length} pesanan ditampilkan</span>
+            <span>{filtered.filter(o => o.is_void).length} dibatalkan</span>
           </div>
         )}
       </Card>
 
-      {/* Modals */}
-      {viewOrder && <ViewModal order={viewOrder} onClose={() => setViewOrder(null)} />}
-      {editOrder && <EditModal order={editOrder} onClose={() => setEditOrder(null)} />}
+      {viewOrder  && <ViewModal order={viewOrder}  onClose={() => setViewOrder(null)} />}
+      {editOrder  && <EditModal order={editOrder}  onClose={() => setEditOrder(null)} />}
 
-      {/* Void Confirmation */}
       <AlertDialog open={!!voidTarget} onOpenChange={open => !open && setVoidTarget(null)}>
         <AlertDialogContent className="bg-card border-border">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle size={18} className="text-destructive" />
-              Void Order #{voidTarget?.id}?
+              Batalkan Pesanan #{voidTarget?.id}?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This will mark the order for{" "}
-              <span className="font-semibold text-foreground">{voidTarget?.customer_name}</span> as void.
-              The order will remain in the database but will be{" "}
-              <span className="font-semibold text-destructive">excluded from all sales totals</span>.
-              This cannot be undone.
+              Pesanan atas nama{" "}
+              <span className="font-semibold text-foreground">{voidTarget?.customer_name}</span> akan dibatalkan.
+              Data akan tetap tersimpan namun{" "}
+              <span className="font-semibold text-destructive">tidak dihitung dalam total penjualan</span>.
+              Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-background border-border hover:bg-secondary">
-              Cancel
+              Batal
             </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
               onClick={handleVoid}
             >
-              <Ban size={14} className="mr-1.5" /> Void Order
+              <Ban size={14} className="mr-1.5" /> Batalkan Pesanan
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -599,9 +585,7 @@ function OrderTableRow({
     <>
       <TableRow
         className={`border-border/50 transition-colors ${
-          order.is_void
-            ? "opacity-50 bg-destructive/5"
-            : "hover:bg-secondary/20"
+          order.is_void ? "opacity-50 bg-destructive/5" : "hover:bg-secondary/20"
         }`}
       >
         <TableCell className="pl-5">
@@ -622,20 +606,14 @@ function OrderTableRow({
         </TableCell>
 
         <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-          {formatDate(order.ready_date)}
+          {formatDateTime(order.ready_date)}
         </TableCell>
 
-        <TableCell>
-          <FulfillmentBadge method={order.fulfillment_method} />
-        </TableCell>
+        <TableCell><FulfillmentBadge method={order.fulfillment_method} /></TableCell>
 
-        <TableCell className="text-sm text-muted-foreground">
-          {order.payment_method}
-        </TableCell>
+        <TableCell className="text-sm text-muted-foreground">{order.payment_method}</TableCell>
 
-        <TableCell>
-          <StatusBadge order={order} />
-        </TableCell>
+        <TableCell><StatusBadge order={order} /></TableCell>
 
         <TableCell className="text-right">
           <span className={`font-bold tabular-nums text-sm ${order.is_void ? "line-through text-muted-foreground" : ""}`}>
@@ -645,13 +623,13 @@ function OrderTableRow({
 
         <TableCell className="pr-5">
           <div className="flex items-center justify-end gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" title="View details" onClick={onView}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" title="Lihat detail" onClick={onView}>
               <Eye size={14} />
             </Button>
             <Button
               variant="ghost" size="icon"
               className={`h-8 w-8 ${order.is_void ? "opacity-30 cursor-not-allowed" : "text-muted-foreground hover:text-blue-400 hover:bg-blue-400/10"}`}
-              title={order.is_void ? "Cannot edit a voided order" : "Edit order"}
+              title={order.is_void ? "Tidak dapat mengedit pesanan yang dibatalkan" : "Edit pesanan"}
               onClick={onEdit}
               disabled={order.is_void}
             >
@@ -660,7 +638,7 @@ function OrderTableRow({
             <Button
               variant="ghost" size="icon"
               className={`h-8 w-8 ${order.is_void ? "opacity-30 cursor-not-allowed" : "text-muted-foreground hover:text-destructive hover:bg-destructive/10"}`}
-              title={order.is_void ? "Already voided" : "Void order"}
+              title={order.is_void ? "Sudah dibatalkan" : "Batalkan pesanan"}
               onClick={onVoid}
               disabled={order.is_void}
             >
@@ -669,7 +647,7 @@ function OrderTableRow({
             <button
               className="h-8 w-8 flex items-center justify-center text-muted-foreground/50 hover:text-muted-foreground transition-colors"
               onClick={() => setExpanded(p => !p)}
-              title="Show items"
+              title="Tampilkan item"
             >
               <ChevronDown size={14} className={`transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
             </button>
@@ -677,16 +655,15 @@ function OrderTableRow({
         </TableCell>
       </TableRow>
 
-      {/* Expandable items row */}
       {expanded && (
         <TableRow className="border-border/30 bg-secondary/10">
           <TableCell colSpan={8} className="py-3 px-8">
             <div className="space-y-1">
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                Order Items
+                Item Pesanan
               </p>
               {items.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No items recorded.</p>
+                <p className="text-xs text-muted-foreground">Belum ada item tercatat.</p>
               ) : (
                 items.map((item, i) => (
                   <div key={i} className="flex justify-between text-sm">
@@ -702,7 +679,7 @@ function OrderTableRow({
               )}
               {order.notes && (
                 <p className="text-xs text-muted-foreground pt-2 border-t border-border/40 mt-2">
-                  <span className="font-semibold">Notes:</span> {order.notes}
+                  <span className="font-semibold">Catatan:</span> {order.notes}
                 </p>
               )}
             </div>
