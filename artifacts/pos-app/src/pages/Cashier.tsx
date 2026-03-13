@@ -752,12 +752,12 @@ export default function Cashier() {
     // Add header row if sheet is empty
     if (sheet.getLastRow() === 0) {
       sheet.appendRow([
-        "Nama", "Item", "Quantity", "Harga Satuan",
+        "No. Pesanan", "Nama", "Item", "Quantity", "Harga Satuan",
         "Harga Total", "Metode Pembayaran",
         "Tanggal Pesanan Diambil", "Metode Pengiriman",
         "Alamat Pengantaran"
       ]);
-      sheet.getRange(1, 1, 1, 9).setFontWeight("bold");
+      sheet.getRange(1, 1, 1, 10).setFontWeight("bold");
     }
 
     var data = JSON.parse(e.postData.contents);
@@ -767,8 +767,22 @@ export default function Cashier() {
         ContentService.MimeType.JSON);
     }
 
+    // If action is "update", delete existing rows for this order_id first
+    if (data.action === "update" && data.order_id) {
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+        for (var i = ids.length - 1; i >= 0; i--) {
+          if (String(ids[i][0]) === String(data.order_id)) {
+            sheet.deleteRow(i + 2);
+          }
+        }
+      }
+    }
+
     data.rows.forEach(function(row) {
       sheet.appendRow([
+        data.order_id,
         row.customer_name,
         row.product_name,
         row.qty,
@@ -795,7 +809,7 @@ export default function Cashier() {
           </div>
 
           <DialogFooter className="gap-2 flex-wrap shrink-0">
-            <Button variant="ghost" onClick={() => setShowSyncSettings(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => setShowSyncSettings(false)}>Batal</Button>
             {syncUrlInput && (
               <Button
                 variant="outline"

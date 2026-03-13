@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
-  db, getOrderItems, voidOrder, updateOrder,
+  db, getOrderItems, voidOrder, updateOrder, replaceOrderItems, requeueOrderSync,
   type Order, type OrderItem,
 } from "@/database/db";
+import { getGasUrl, syncPendingOrders } from "@/services/syncService";
 import { formatCurrency, formatDateTime } from "@/utils/format";
 import {
   FileText, Search, Eye, Pencil, Ban, ShoppingBag, Bike,
   User, Phone, Calendar, CreditCard, StickyNote, MapPin,
-  MessageSquare, ChevronDown, AlertTriangle,
+  MessageSquare, ChevronDown, AlertTriangle, Plus, Minus, Trash2, Package,ShoppingCart,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -216,9 +217,19 @@ function ViewModal({ order, onClose }: { order: Order; onClose: () => void }) {
 
 // ── Edit Modal ─────────────────────────────────────────────────────────────
 
+// Local type for editable items
+interface EditableItem {
+  product_name: string;
+  price: number;
+  qty: number;
+}
+
 function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<"detail" | "items">("detail");
+
+  // ── Detail form ──────────────────────────────────────────────────────────
   const [form, setForm] = useState<EditForm>({
     customer_name:          order.customer_name,
     customer_phone:         order.customer_phone,
@@ -231,12 +242,73 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
     notes:                  order.notes ?? "",
     status:                 order.status ?? "pending",
   });
-
   const set = <K extends keyof EditForm>(key: K, val: EditForm[K]) =>
     setForm(prev => ({ ...prev, [key]: val }));
 
+  // ── Item editor ──────────────────────────────────────────────────────────
+  const [editItems, setEditItems] = useState<EditableItem[] | null>(null);
+  const [itemsLoaded, setItemsLoaded] = useState(false);
+  const [addSearch, setAddSearch] = useState("");
+  const [showAddProduct, setShowAddProduct] = useState(false);
+
+  const allProducts = useLiveQuery(() => db.products.orderBy("name").toArray()) ?? [];
+
+  const loadItems = async () => {
+    if (itemsLoaded) return;
+    const raw = await getOrderItems(order.id!);
+    setEditItems(raw.map(i => ({ product_name: i.product_name, price: i.price, qty: i.qty })));
+    setItemsLoaded(true);
+  };
+
+  const handleTabChange = (tab: "detail" | "items") => {
+    setActiveTab(tab);
+    if (tab === "items") loadItems();
+  };
+
+  const updateItemQty = (idx: number, delta: number) => {
+    setEditItems(prev => {
+      if (!prev) return prev;
+      const next = [...prev];
+      const newQty = next[idx].qty + delta;
+      if (newQty <= 0) { next.splice(idx, 1); } else { next[idx] = { ...next[idx], qty: newQty }; }
+      return next;
+    });
+  };
+
+  const removeItem = (idx: number) =>
+    setEditItems(prev => prev ? prev.filter((_, i) => i !== idx) : prev);
+
+  const addProduct = (p: { name: string; price: number }) => {
+    setEditItems(prev => {
+      if (!prev) return prev;
+      const existing = prev.findIndex(i => i.product_name === p.name);
+      if (existing >= 0) {
+        const next = [...prev];
+        next[existing] = { ...next[existing], qty: next[existing].qty + 1 };
+        return next;
+      }
+      return [...prev, { product_name: p.name, price: p.price, qty: 1 }];
+    });
+    setAddSearch("");
+    setShowAddProduct(false);
+  };
+
+  const filteredAddProducts = allProducts.filter(p =>
+    p.name.toLowerCase().includes(addSearch.toLowerCase()) ||
+    (p.portion_size ?? "").toLowerCase().includes(addSearch.toLowerCase())
+  );
+
+  const itemsTotal = (editItems ?? []).reduce((s, i) => s + i.price * i.qty, 0);
+  const deliveryFee = form.fulfillment_method === "ojol" ? (form.estimated_delivery_fee || 0) : 0;
+  const grandTotal = itemsTotal + deliveryFee;
+
+  // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!order.id) return;
+    if (editItems !== null && editItems.length === 0) {
+      toast({ title: "Pesanan kosong", description: "Tambahkan minimal satu item.", variant: "destructive" });
+      return;
+    }
     setIsSaving(true);
     try {
       await updateOrder(order.id, {
@@ -250,8 +322,29 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
         estimated_delivery_fee: form.fulfillment_method === "ojol" ? (form.estimated_delivery_fee || 0) : 0,
         notes:                  form.notes,
         status:                 form.status,
+        ...(editItems !== null ? { total: grandTotal } : {}),
       });
-      toast({ title: "Pesanan diperbarui", description: `Pesanan #${order.id} telah disimpan.` });
+
+      if (editItems !== null) {
+        const newItems = editItems.map(i => ({
+          order_id:     order.id!,
+          product_name: i.product_name,
+          qty:          i.qty,
+          price:        i.price,
+          subtotal:     i.price * i.qty,
+        }));
+        await replaceOrderItems(order.id, newItems);
+      }
+
+      await requeueOrderSync(order.id);
+
+      const gasUrl = getGasUrl();
+      if (gasUrl) syncPendingOrders(gasUrl).catch(() => {});
+
+      toast({
+        title: "Pesanan diperbarui",
+        description: `Pesanan #${order.id} disimpan${gasUrl ? " & disinkronkan." : "."}`,
+      });
       onClose();
     } catch {
       toast({ title: "Gagal memperbarui pesanan", variant: "destructive" });
@@ -262,129 +355,249 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
-      <DialogContent className="sm:max-w-[500px] bg-card border-border max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[540px] bg-card border-border max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden">
+
+        {/* Header */}
+        <DialogHeader className="px-5 pt-5 pb-3 shrink-0">
           <DialogTitle className="text-xl font-bold">Edit Pesanan #{order.id}</DialogTitle>
-          <DialogDescription>Perbarui detail pesanan di bawah.</DialogDescription>
+          <DialogDescription>Perbarui detail atau ubah item pesanan.</DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Nama Customer</Label>
-              <Input className="bg-background border-border h-9 text-sm" placeholder="Tanpa Nama"
-                value={form.customer_name} onChange={e => set("customer_name", e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">No. Telepon</Label>
-              <Input className="bg-background border-border h-9 text-sm" placeholder="Opsional" type="tel"
-                value={form.customer_phone} onChange={e => set("customer_phone", e.target.value)} />
-            </div>
-          </div>
+        {/* Tabs */}
+        <div className="flex gap-1 px-5 shrink-0 border-b border-border">
+          {([["detail", "📋 Detail"], ["items", "🛒 Item Pesanan"]] as const).map(([tab, label]) => (
+            <button
+              key={tab}
+              onClick={() => handleTabChange(tab)}
+              className={`px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-all ${
+                activeTab === tab
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Status</Label>
-            <Select value={form.status} onValueChange={val => set("status", val)}>
-              <SelectTrigger className="bg-background border-border h-9 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-card border-border">
-                {[
-                  { value: "pending",     label: "Menunggu" },
-                  { value: "in-progress", label: "Diproses" },
-                  { value: "ready",       label: "Siap" },
-                  { value: "delivered",   label: "Selesai" },
-                ].map(s => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Tanggal &amp; Waktu Siap</Label>
-            <Input type="datetime-local" className="bg-background border-border h-9 text-sm"
-              value={form.ready_date} onChange={e => set("ready_date", e.target.value)} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs">Metode Pembayaran</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {(["Transfer", "QRIS"] as PaymentMethod[]).map(m => (
-                <button key={m} type="button" onClick={() => set("payment_method", m)}
-                  className={`py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
-                    form.payment_method === m
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground hover:border-primary/40"
-                  }`}>
-                  {m === "Transfer" ? "💳 Transfer Bank" : "📱 QRIS"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs">Metode Pengambilan</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => set("fulfillment_method", "pickup")}
-                className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
-                  form.fulfillment_method === "pickup"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background text-muted-foreground hover:border-primary/40"
-                }`}>
-                <ShoppingBag size={14} /> Ambil Sendiri
-              </button>
-              <button type="button" onClick={() => set("fulfillment_method", "ojol")}
-                className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
-                  form.fulfillment_method === "ojol"
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border bg-background text-muted-foreground hover:border-primary/40"
-                }`}>
-                <Bike size={14} /> Diantar (Ojol)
-              </button>
-            </div>
-          </div>
-
-          {form.fulfillment_method === "ojol" && (
-            <div className="space-y-3 rounded-xl border border-border/60 bg-background/50 p-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Alamat Pengiriman</Label>
-                <Textarea className="bg-background border-border text-sm resize-none min-h-[70px]"
-                  placeholder="Masukkan alamat..." value={form.delivery_address}
-                  onChange={e => set("delivery_address", e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Catatan Pengiriman</Label>
-                <Input className="bg-background border-border h-9 text-sm"
-                  placeholder="cth. Taruh di depan pintu" value={form.delivery_notes}
-                  onChange={e => set("delivery_notes", e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Est. Ongkos Kirim</Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
-                  <Input type="number" min="0" className="bg-background border-border h-9 text-sm pl-9"
-                    value={form.estimated_delivery_fee || ""}
-                    onChange={e => set("estimated_delivery_fee", parseFloat(e.target.value) || 0)} />
+          {/* ── Tab: Detail ── */}
+          {activeTab === "detail" && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Nama Pelanggan</Label>
+                  <Input className="bg-background border-border h-9 text-sm" placeholder="Tanpa Nama"
+                    value={form.customer_name} onChange={e => set("customer_name", e.target.value)} />
                 </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">No. Telepon</Label>
+                  <Input className="bg-background border-border h-9 text-sm" placeholder="Opsional" type="tel"
+                    value={form.customer_phone} onChange={e => set("customer_phone", e.target.value)} />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Status</Label>
+                <Select value={form.status} onValueChange={val => set("status", val)}>
+                  <SelectTrigger className="bg-background border-border h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    {[
+                      { value: "pending",     label: "Menunggu" },
+                      { value: "in-progress", label: "Diproses" },
+                      { value: "ready",       label: "Siap" },
+                      { value: "delivered",   label: "Selesai" },
+                    ].map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Tanggal &amp; Waktu Siap</Label>
+                <Input type="datetime-local" className="bg-background border-border h-9 text-sm"
+                  value={form.ready_date} onChange={e => set("ready_date", e.target.value)} />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Metode Pembayaran</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["Transfer", "QRIS"] as PaymentMethod[]).map(m => (
+                    <button key={m} type="button" onClick={() => set("payment_method", m)}
+                      className={`py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
+                        form.payment_method === m
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/40"
+                      }`}>
+                      {m === "Transfer" ? "💳 Transfer" : "📱 QRIS"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Metode Pengambilan</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => set("fulfillment_method", "pickup")}
+                    className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
+                      form.fulfillment_method === "pickup" ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:border-primary/40"
+                    }`}>
+                    <ShoppingBag size={14} /> Ambil Sendiri
+                  </button>
+                  <button type="button" onClick={() => set("fulfillment_method", "ojol")}
+                    className={`flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
+                      form.fulfillment_method === "ojol" ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:border-primary/40"
+                    }`}>
+                    <Bike size={14} /> Diantar (Ojol)
+                  </button>
+                </div>
+              </div>
+
+              {form.fulfillment_method === "ojol" && (
+                <div className="space-y-3 rounded-xl border border-border/60 bg-background/50 p-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Alamat Pengiriman</Label>
+                    <Textarea className="bg-background border-border text-sm resize-none min-h-[70px]"
+                      placeholder="Masukkan alamat..." value={form.delivery_address}
+                      onChange={e => set("delivery_address", e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Catatan Pengiriman</Label>
+                    <Input className="bg-background border-border h-9 text-sm"
+                      placeholder="cth. Taruh di depan pintu" value={form.delivery_notes}
+                      onChange={e => set("delivery_notes", e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Est. Ongkos Kirim</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
+                      <Input type="number" min="0" className="bg-background border-border h-9 text-sm pl-9"
+                        value={form.estimated_delivery_fee || ""}
+                        onChange={e => set("estimated_delivery_fee", parseFloat(e.target.value) || 0)} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Catatan Pesanan</Label>
+                <Textarea className="bg-background border-border text-sm resize-none min-h-[60px]"
+                  placeholder="Instruksi khusus..." value={form.notes}
+                  onChange={e => set("notes", e.target.value)} />
               </div>
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">Catatan Pesanan</Label>
-            <Textarea className="bg-background border-border text-sm resize-none min-h-[60px]"
-              placeholder="Instruksi khusus..." value={form.notes}
-              onChange={e => set("notes", e.target.value)} />
-          </div>
+          {/* ── Tab: Item Pesanan ── */}
+          {activeTab === "items" && (
+            <div className="space-y-3">
+              {!itemsLoaded ? (
+                <div className="py-8 flex items-center justify-center text-muted-foreground text-sm gap-2">
+                  <Package size={16} className="animate-pulse" /> Memuat item...
+                </div>
+              ) : (
+                <>
+                  {(editItems ?? []).length === 0 ? (
+                    <div className="py-6 flex flex-col items-center gap-2 text-muted-foreground/50">
+                      <ShoppingCart size={28} strokeWidth={1.2} />
+                      <p className="text-sm">Belum ada item</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {(editItems ?? []).map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 bg-background/60 border border-border/50 rounded-xl px-3 py-2.5">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{item.product_name}</p>
+                            <p className="text-xs text-muted-foreground tabular-nums">{formatCurrency(item.price)} / porsi</p>
+                          </div>
+                          <div className="flex items-center gap-0.5 bg-secondary rounded-lg p-0.5 shrink-0">
+                            <button onClick={() => updateItemQty(idx, -1)}
+                              className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-background transition-colors">
+                              <Minus size={12} />
+                            </button>
+                            <span className="w-7 text-center text-sm font-bold tabular-nums">{item.qty}</span>
+                            <button onClick={() => updateItemQty(idx, +1)}
+                              className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-background transition-colors">
+                              <Plus size={12} />
+                            </button>
+                          </div>
+                          <span className="text-sm font-bold tabular-nums w-24 text-right shrink-0">
+                            {formatCurrency(item.price * item.qty)}
+                          </span>
+                          <button onClick={() => removeItem(idx)}
+                            className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0">
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {(editItems ?? []).length > 0 && (
+                    <div className="rounded-xl border border-border/40 bg-secondary/20 px-4 py-3 space-y-1.5 text-sm">
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Subtotal item</span>
+                        <span className="tabular-nums">{formatCurrency(itemsTotal)}</span>
+                      </div>
+                      {deliveryFee > 0 && (
+                        <div className="flex justify-between text-muted-foreground">
+                          <span>Ongkos Kirim</span>
+                          <span className="tabular-nums">{formatCurrency(deliveryFee)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between font-bold text-base border-t border-border/40 pt-1.5">
+                        <span>Total</span>
+                        <span className="text-primary tabular-nums">{formatCurrency(grandTotal)}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setShowAddProduct(p => !p)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/5 text-sm font-semibold text-muted-foreground hover:text-primary transition-all"
+                    >
+                      <Plus size={15} /> Tambah Produk
+                    </button>
+
+                    {showAddProduct && (
+                      <div className="space-y-2 rounded-xl border border-border bg-background/50 p-3 animate-in fade-in slide-in-from-top-2 duration-150">
+                        <Input autoFocus className="bg-background border-border h-9 text-sm"
+                          placeholder="Cari produk..." value={addSearch}
+                          onChange={e => setAddSearch(e.target.value)} />
+                        <div className="max-h-44 overflow-y-auto space-y-0.5">
+                          {filteredAddProducts.length === 0 ? (
+                            <p className="text-xs text-muted-foreground/50 text-center py-3">Produk tidak ditemukan</p>
+                          ) : filteredAddProducts.map(p => (
+                            <button key={p.id} onClick={() => addProduct({ name: p.name, price: p.price })}
+                              className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-primary/10 text-sm transition-colors group">
+                              <div className="text-left">
+                                <p className="font-medium group-hover:text-primary transition-colors">{p.name}</p>
+                                <p className="text-xs text-muted-foreground">{p.portion_size}</p>
+                              </div>
+                              <span className="font-bold text-primary tabular-nums shrink-0">{formatCurrency(p.price)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
-        <DialogFooter className="gap-2">
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-border shrink-0 flex gap-2 bg-secondary/10">
           <Button variant="ghost" onClick={onClose}>Batal</Button>
-          <Button className="font-bold min-w-[100px]" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Menyimpan..." : "Simpan"}
+          <Button className="flex-1 font-bold" onClick={handleSave} disabled={isSaving}>
+            {isSaving ? "Menyimpan..." : "💾 Simpan & Sinkronkan"}
           </Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
