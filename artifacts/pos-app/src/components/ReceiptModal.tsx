@@ -23,7 +23,7 @@ export interface ReceiptData {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-const STORE_NAME = "Lumina POS";
+// storeName is now passed via ReceiptData
 
 function fmtDate(iso: string) {
   try {
@@ -45,19 +45,25 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
 function buildWhatsAppMessage(r: ReceiptData): string {
   const divider = "─────────────────";
   const isOjol = r.fulfillmentMethod === "ojol";
+  const storeName = r.storeName || "Toko";
 
   const itemLines = r.items
     .map(i => `  • ${i.qty}× ${i.product_name} — ${formatCurrency(i.subtotal)}`)
     .join("\n");
 
+  const pickupAddressLine = !isOjol && r.storeAddress
+    ? `\n📍 Alamat: ${r.storeAddress}` +
+      (r.mapsUrl ? `\n🗺️ Maps: ${r.mapsUrl}` : "")
+    : "";
+
   const deliveryLine = isOjol
     ? `\n🛵 *Ojol Delivery*\n📍 Alamat: ${r.deliveryAddress || "-"}\n💰 Ongkir: ${formatCurrency(r.deliveryFee)}`
-    : `\n🏪 *Ambil Sendiri (Pickup)*`;
+    : `\n🏪 *Ambil Sendiri (Pickup)*${pickupAddressLine}`;
 
   const notesLine = r.notes ? `\n📝 Catatan: ${r.notes}` : "";
 
   return (
-    `🧾 *${STORE_NAME} — Struk Pesanan*\n` +
+    `🧾 *${storeName} — Struk Pesanan*\n` +
     `${divider}\n` +
     `📋 No. Pesanan: *#${r.orderId}*\n` +
     `📅 Tanggal: ${fmtDate(r.orderDate)}\n` +
@@ -126,7 +132,7 @@ export function ReceiptModal({
 
           {/* Store name */}
           <div className="text-center pb-1">
-            <p className="font-display font-bold text-lg">{STORE_NAME}</p>
+            <p className="font-display font-bold text-lg">{receipt.storeName || "Toko"}</p>
             <p className="text-xs text-muted-foreground">Struk Pesanan</p>
           </div>
 
@@ -206,6 +212,24 @@ export function ReceiptModal({
                 <div className="flex gap-1 mt-1 text-xs text-muted-foreground">
                   <MapPin size={11} className="mt-0.5 shrink-0" />
                   <span>{receipt.deliveryAddress}</span>
+                </div>
+              )}
+              {!isOjol && receipt.storeAddress && (
+                <div className="mt-1.5 space-y-1">
+                  <div className="flex gap-1 text-xs text-muted-foreground">
+                    <MapPin size={11} className="mt-0.5 shrink-0" />
+                    <span>{receipt.storeAddress}</span>
+                  </div>
+                  {receipt.mapsUrl && (
+                    <a
+                      href={receipt.mapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      🗺️ Lihat di Google Maps
+                    </a>
+                  )}
                 </div>
               )}
             </div>
