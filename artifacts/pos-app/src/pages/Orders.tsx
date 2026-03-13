@@ -290,15 +290,6 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
     });
   };
 
-  const setItemQty = (idx: number, val: number) => {
-    if (isNaN(val) || val < 1) return;
-    setEditItems(prev => {
-      if (!prev) return prev;
-      const next = [...prev];
-      next[idx] = { ...next[idx], qty: val };
-      return next;
-    });
-  };
 
   const removeItem = (idx: number) =>
     setEditItems(prev => prev ? prev.filter((_, i) => i !== idx) : prev);
