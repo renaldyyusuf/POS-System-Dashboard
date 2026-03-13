@@ -179,7 +179,7 @@ function KanbanColumn({
         onDragLeave={() => setIsDragOver(false)}
         onDrop={() => { setIsDragOver(false); onDrop(col.id); }}
         className={`
-          flex-1 min-h-[200px] rounded-xl border-2 border-dashed p-2 space-y-2.5 overflow-y-auto
+          flex-1 min-h-[120px] rounded-xl border-2 border-dashed p-2 space-y-2.5 overflow-y-auto
           transition-colors duration-150
           ${isDragOver
             ? `${col.dropActiveBg} border-opacity-100`
@@ -188,12 +188,12 @@ function KanbanColumn({
         `}
       >
         {orders.length === 0 && !isDragOver && (
-          <div className="h-full min-h-[140px] flex items-center justify-center text-xs text-muted-foreground/30 font-medium">
+          <div className="h-full min-h-[80px] flex items-center justify-center text-xs text-muted-foreground/30 font-medium">
             {col.emptyText}
           </div>
         )}
         {isDragOver && orders.length === 0 && (
-          <div className="h-full min-h-[140px] flex items-center justify-center text-xs font-semibold text-primary/60">
+          <div className="h-full min-h-[80px] flex items-center justify-center text-xs font-semibold text-primary/60">
             Taruh di sini →
           </div>
         )}
@@ -244,7 +244,7 @@ export default function ProductionBoard() {
 
   return (
     <div
-      className="h-full flex flex-col gap-5 animate-in fade-in duration-500"
+      className="flex flex-col gap-5 animate-in fade-in duration-500"
       onDragEnd={() => setDraggingId(null)}
     >
       <div className="flex flex-wrap items-start justify-between gap-3 shrink-0">
@@ -269,8 +269,8 @@ export default function ProductionBoard() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 pb-2">
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 h-full min-h-[400px]">
+      <div className="pb-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {COLUMNS.map(col => (
             <KanbanColumn
               key={col.id}

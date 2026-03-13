@@ -52,7 +52,7 @@ function StatCard({
       <CardContent className="p-5 flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-sm text-muted-foreground">{label}</p>
-          <p className="text-2xl font-bold font-display mt-1 truncate">{value}</p>
+          <p className="text-lg sm:text-xl font-bold font-display mt-1 leading-tight">{value}</p>
           {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
         </div>
         <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${accent}`}>
