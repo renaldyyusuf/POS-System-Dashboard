@@ -22,7 +22,7 @@ interface KanbanColumn {
 const COLUMNS: KanbanColumn[] = [
   {
     id: "pending",
-    label: "Pending",
+    label: "Menunggu",
     dot: "bg-amber-400",
     headerBg: "bg-amber-500/10",
     topBorder: "border-t-amber-400",
@@ -31,7 +31,7 @@ const COLUMNS: KanbanColumn[] = [
   },
   {
     id: "in-progress",
-    label: "Preparing",
+    label: "Diproses",
     dot: "bg-blue-400",
     headerBg: "bg-blue-500/10",
     topBorder: "border-t-blue-400",
@@ -40,7 +40,7 @@ const COLUMNS: KanbanColumn[] = [
   },
   {
     id: "ready",
-    label: "Ready",
+    label: "Siap",
     dot: "bg-emerald-400",
     headerBg: "bg-emerald-500/10",
     topBorder: "border-t-emerald-400",
@@ -101,7 +101,7 @@ function OrderCard({
             {order.customer_name}
           </p>
         </div>
-        <span className="text-lg leading-none mt-0.5 shrink-0" title={isOjol ? "Ojol Delivery" : "Pickup"}>
+        <span className="text-lg leading-none mt-0.5 shrink-0" title={isOjol ? "Ojol Delivery" : "Ambil Sendiri"}>
           {isOjol ? "🛵" : "🏪"}
         </span>
       </div>
@@ -117,7 +117,7 @@ function OrderCard({
             ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
             : "bg-blue-500/10 text-blue-400 border-blue-500/20"
         }`}>
-          {isOjol ? "Ojol" : "Pickup"}
+          {isOjol ? "Ojol" : "Ambil Sendiri"}
         </span>
       </div>
 

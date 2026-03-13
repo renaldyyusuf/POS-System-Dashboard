@@ -128,12 +128,12 @@ export default function Cashier() {
     if (!selectedProduct) return;
     cart.addItem(selectedProduct as any, qtyInput);
     setSelectedProduct(null);
-    toast({ title: "Added to cart", description: `${qtyInput}× ${selectedProduct.name}` });
+    toast({ title: "Ditambahkan ke keranjang", description: `${qtyInput}× ${selectedProduct.name} ditambahkan` });
   };
 
   const handleSaveOrder = async () => {
     if (cart.items.length === 0) {
-      toast({ title: "Cart is empty", description: "Add products before saving.", variant: "destructive" });
+      toast({ title: "Keranjang kosong", description: "Tambahkan produk sebelum menyimpan.", variant: "destructive" });
       return;
     }
     setIsSaving(true);
@@ -144,7 +144,7 @@ export default function Cashier() {
         : now;
 
       const orderId = await createOrder({
-        customer_name: form.customer_name || "Walk-in",
+        customer_name: form.customer_name || "Tanpa Nama",
         customer_phone: form.customer_phone,
         ready_date: readyIso,
         payment_method: form.payment_method,
@@ -189,7 +189,7 @@ export default function Cashier() {
         orderId,
         orderDate: now,
         readyDate: readyIso,
-        customerName: form.customer_name || "Walk-in",
+        customerName: form.customer_name || "Tanpa Nama",
         customerPhone: form.customer_phone,
         paymentMethod: form.payment_method,
         fulfillmentMethod: form.fulfillment_method,
@@ -203,7 +203,7 @@ export default function Cashier() {
       cart.clearCart();
       setForm(defaultForm());
     } catch {
-      toast({ title: "Failed to save order", variant: "destructive" });
+      toast({ title: "Gagal menyimpan pesanan", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
@@ -212,7 +212,7 @@ export default function Cashier() {
   const handleManualSync = async () => {
     if (!gasUrl) { setShowSyncSettings(true); return; }
     if (!isOnline) {
-      toast({ title: "No internet", description: "Connect to the internet and try again.", variant: "destructive" });
+      toast({ title: "Tidak ada koneksi", description: "Hubungkan ke internet dan coba lagi.", variant: "destructive" });
       return;
     }
     setIsSyncing(true);
@@ -221,14 +221,14 @@ export default function Cashier() {
       const newCount = await getPendingSyncCount();
       setPendingCount(newCount);
       toast({
-        title: result.synced > 0 ? "Sync complete" : "Nothing to sync",
+        title: result.synced > 0 ? "Sinkronisasi selesai" : "Tidak ada yang perlu disinkronkan",
         description: result.synced > 0
           ? `${result.synced} order${result.synced !== 1 ? "s" : ""} synced to Google Sheets.`
-          : result.failed > 0 ? `${result.failed} order(s) failed — check your endpoint URL.` : "All orders are up to date.",
+          : result.failed > 0 ? `${result.failed} pesanan gagal — periksa URL endpoint Anda.` : "Semua pesanan sudah tersinkronisasi.",
         variant: result.failed > 0 ? "destructive" : "default",
       });
     } catch {
-      toast({ title: "Sync failed", variant: "destructive" });
+      toast({ title: "Sinkronisasi gagal", variant: "destructive" });
     } finally {
       setIsSyncing(false);
     }
@@ -238,7 +238,7 @@ export default function Cashier() {
     setGasUrl(syncUrlInput);
     setGasUrlState(syncUrlInput);
     setShowSyncSettings(false);
-    toast({ title: "Endpoint saved", description: "Google Sheets sync URL has been configured." });
+    toast({ title: "Endpoint disimpan", description: "URL sinkronisasi Google Sheets telah dikonfigurasi." });
   };
 
   const handleTestConnection = async () => {
@@ -265,7 +265,7 @@ export default function Cashier() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search products by name or size..."
+              placeholder="Cari produk berdasarkan nama atau ukuran..."
               className="pl-10 h-11 bg-card border-border"
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -277,7 +277,7 @@ export default function Cashier() {
             <button
               onClick={handleManualSync}
               disabled={isSyncing}
-              title={gasUrl ? "Sync to Google Sheets" : "Configure Google Sheets sync"}
+              title={gasUrl ? "Sinkronkan ke Google Sheets" : "Atur sinkronisasi Google Sheets"}
               className={`h-11 px-3 rounded-lg border flex items-center gap-1.5 text-xs font-medium transition-colors ${
                 pendingCount > 0
                   ? "border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
@@ -296,7 +296,7 @@ export default function Cashier() {
             </button>
             <button
               onClick={() => { setSyncUrlInput(gasUrl); setShowSyncSettings(true); }}
-              title="Sync settings"
+              title="Pengaturan sinkronisasi"
               className="h-11 w-11 rounded-lg border border-border bg-card flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
             >
               <Settings2 size={15} />
@@ -311,8 +311,8 @@ export default function Cashier() {
               <Package size={32} className="opacity-20" />
               <p className="text-sm">
                 {products.length === 0
-                  ? "No products yet. Add products first."
-                  : "No products match your search."}
+                  ? "Belum ada produk. Tambahkan produk terlebih dahulu."
+                  : "Tidak ada produk yang cocok."}
               </p>
             </div>
           ) : (
@@ -436,7 +436,7 @@ export default function Cashier() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Customer Name</Label>
                 <Input
-                  placeholder="Walk-in"
+                  placeholder="Tanpa Nama"
                   className="bg-background border-border h-9 text-sm"
                   value={form.customer_name}
                   onChange={e => setField("customer_name", e.target.value)}
@@ -541,9 +541,9 @@ export default function Cashier() {
                   <Bike size={11} /> Delivery Details
                 </p>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Delivery Address</Label>
+                  <Label className="text-xs">Alamat Pengiriman</Label>
                   <Textarea
-                    placeholder="Enter delivery address..."
+                    placeholder="Masukkan alamat pengiriman..."
                     className="bg-background border-border text-sm resize-none min-h-[70px]"
                     value={form.delivery_address}
                     onChange={e => setField("delivery_address", e.target.value)}
@@ -596,7 +596,7 @@ export default function Cashier() {
             </div>
             {form.fulfillment_method === "ojol" && (
               <div className="flex justify-between text-muted-foreground">
-                <span>Delivery fee</span>
+                <span>Ongkos Kirim</span>
                 <span className="tabular-nums">{formatCurrency(form.estimated_delivery_fee || 0)}</span>
               </div>
             )}
@@ -621,7 +621,7 @@ export default function Cashier() {
               disabled={isSaving || cart.items.length === 0}
             >
               <Save size={14} className="mr-1.5" />
-              {isSaving ? "Saving..." : "Save Order"}
+              {isSaving ? "Menyimpan..." : "Simpan Pesanan"}
             </Button>
           </div>
         </div>
@@ -702,7 +702,7 @@ export default function Cashier() {
                 : "bg-secondary border-border text-muted-foreground"
             }`}>
               {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
-              <span>{isOnline ? "Connected to internet" : "Offline — sync will run automatically when connected"}</span>
+              <span>{isOnline ? "Terhubung ke internet" : "Offline — sinkronisasi otomatis saat terhubung"}</span>
             </div>
 
             {pendingCount > 0 && (
@@ -736,7 +736,7 @@ export default function Cashier() {
                     const code = document.getElementById("gas-code-block")?.textContent ?? "";
                     navigator.clipboard.writeText(code).then(() => {
                       const btn = document.getElementById("copy-gas-btn");
-                      if (btn) { btn.textContent = "✓ Copied!"; setTimeout(() => { btn.textContent = "Copy"; }, 2000); }
+                      if (btn) { btn.textContent = "✓ Copied!"; setTimeout(() => { btn.textContent = "Salin"; }, 2000); }
                     });
                   }}
                   id="copy-gas-btn"
@@ -754,7 +754,7 @@ export default function Cashier() {
       sheet.appendRow([
         "Nama", "Item", "Quantity", "Harga Satuan",
         "Harga Total", "Metode Pembayaran",
-        "Tanggal Pesanan Diambil", "Fulfillment Method",
+        "Tanggal Pesanan Diambil", "Metode Pengiriman",
         "Alamat Pengantaran"
       ]);
       sheet.getRange(1, 1, 1, 9).setFontWeight("bold");
@@ -806,10 +806,10 @@ export default function Cashier() {
                 disabled={testStatus === "testing"}
                 onClick={handleTestConnection}
               >
-                {testStatus === "testing" ? "Testing..." :
+                {testStatus === "testing" ? "Menguji..." :
                  testStatus === "ok"      ? "✓ Reachable!" :
                  testStatus === "fail"    ? "✗ Failed" :
-                 "Test Connection"}
+                 "Tes Koneksi"}
               </Button>
             )}
             {pendingCount > 0 && syncUrlInput && (

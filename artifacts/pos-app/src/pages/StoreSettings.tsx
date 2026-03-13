@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { db, type StoreSettings } from "@/database/db";
 import {
   Save, Store, Phone, MapPin, Building2, CreditCard,
-  User, FileText, CheckCircle2, Plus, Trash2,
+  User, FileText, CheckCircle2, Plus, Trash2, QrCode, Upload, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,7 @@ const defaultForm = (): FormData => ({
   bank_account_holder: "",
   additional_notes: "",
   bank_accounts: "[]",
+  qris_image: "",
 });
 
 // ── DB helpers ─────────────────────────────────────────────────────────────
@@ -177,6 +178,7 @@ export default function StoreSettings() {
         bank_account_holder:  settings.bank_account_holder,
         additional_notes:     settings.additional_notes,
         bank_accounts:        settings.bank_accounts ?? "[]",
+        qris_image:           settings.qris_image ?? "",
       });
 
       const parsed = parseBankAccounts(settings.bank_accounts);
@@ -196,6 +198,22 @@ export default function StoreSettings() {
 
   const setField = <K extends keyof FormData>(key: K, value: FormData[K]) =>
     setForm(prev => ({ ...prev, [key]: value }));
+
+  const handleQrisUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Format tidak didukung", description: "Upload file gambar (PNG, JPG, dll).", variant: "destructive" });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "File terlalu besar", description: "Ukuran maksimal gambar QRIS adalah 2MB.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setField("qris_image", reader.result as string);
+    reader.readAsDataURL(file);
+  };
 
   const handleAccountChange = (id: string, field: keyof BankAccount, value: string) => {
     setAccounts(prev => prev.map(a => a.id === id ? { ...a, [field]: value } : a));
@@ -309,6 +327,65 @@ export default function StoreSettings() {
               onRemove={handleRemoveAccount}
             />
           ))}
+        </CardContent>
+      </Card>
+
+
+      {/* QRIS Image */}
+      <Card className="bg-card border-border shadow-lg shadow-black/10">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base flex items-center gap-2">
+            <QrCode size={16} className="text-primary" />
+            Kode QRIS
+          </CardTitle>
+          <CardDescription>
+            Upload gambar QRIS toko. Akan ditampilkan di struk untuk pelanggan yang membayar via QRIS.
+            Jika tidak diupload, opsi QRIS di kasir akan dinonaktifkan.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {form.qris_image ? (
+            <div className="flex flex-col sm:flex-row items-start gap-4">
+              <div className="relative shrink-0">
+                <img
+                  src={form.qris_image}
+                  alt="QRIS"
+                  className="w-36 h-36 object-contain rounded-xl border border-border bg-white p-1"
+                />
+                <button
+                  onClick={() => setField("qris_image", "")}
+                  className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive text-white flex items-center justify-center hover:bg-destructive/80 transition-colors shadow-md"
+                  title="Hapus gambar QRIS"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+              <div className="space-y-2 flex-1">
+                <p className="text-sm font-medium text-emerald-400 flex items-center gap-1.5">
+                  <CheckCircle2 size={14} /> QRIS sudah diupload
+                </p>
+                <p className="text-xs text-muted-foreground">Opsi pembayaran QRIS di kasir sudah aktif.</p>
+                <label className="cursor-pointer inline-flex items-center gap-2 text-xs font-semibold text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/15 border border-primary/20 px-3 py-1.5 rounded-lg transition-colors">
+                  <Upload size={12} /> Ganti Gambar
+                  <input type="file" accept="image/*" className="hidden" onChange={handleQrisUpload} />
+                </label>
+              </div>
+            </div>
+          ) : (
+            <label className="cursor-pointer flex flex-col items-center justify-center gap-3 border-2 border-dashed border-border hover:border-primary/40 rounded-xl p-8 transition-colors group">
+              <div className="h-12 w-12 rounded-xl bg-secondary flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                <QrCode size={22} className="text-muted-foreground group-hover:text-primary transition-colors" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-semibold text-foreground">Upload Gambar QRIS</p>
+                <p className="text-xs text-muted-foreground mt-1">PNG, JPG, atau format lain • Maks. 2MB</p>
+              </div>
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-primary bg-primary/10 border border-primary/20 px-3 py-1.5 rounded-lg">
+                <Upload size={12} /> Pilih File
+              </span>
+              <input type="file" accept="image/*" className="hidden" onChange={handleQrisUpload} />
+            </label>
+          )}
         </CardContent>
       </Card>
 

@@ -234,37 +234,37 @@ export default function Reports() {
           className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-md shadow-emerald-900/30"
         >
           <Download className="mr-2 h-4 w-4" />
-          {isExporting ? "Exporting…" : "Export to Excel"}
+          {isExporting ? "Mengekspor..." : "Ekspor ke Excel"}
         </Button>
       </div>
 
       {/* ── Stat Cards ─────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
-          label="Today's Sales"
+          label="Penjualan Hari Ini"
           value={formatCurrency(dailyTotal)}
           sub={`${todayOrders.length} order${todayOrders.length !== 1 ? "s" : ""} today`}
           icon={<TrendingUp size={18} className="text-emerald-400" />}
           accent="bg-emerald-500/10"
         />
         <StatCard
-          label="This Month"
+          label="Bulan Ini"
           value={formatCurrency(monthlyTotal)}
           sub={`${monthOrders.length} orders in ${format(new Date(), "MMMM")}`}
           icon={<ShoppingCart size={18} className="text-blue-400" />}
           accent="bg-blue-500/10"
         />
         <StatCard
-          label="All-Time Revenue"
+          label="Total Pendapatan"
           value={formatCurrency(allTimeTotal)}
           sub={`${validOrders.length} total orders`}
           icon={<Zap size={18} className="text-primary" />}
           accent="bg-primary/10"
         />
         <StatCard
-          label="Avg Order Value"
+          label="Rata-rata Pesanan"
           value={formatCurrency(avgOrder)}
-          sub="across all orders"
+          sub="dari semua pesanan"
           icon={<Package size={18} className="text-amber-400" />}
           accent="bg-amber-500/10"
         />
@@ -288,7 +288,7 @@ export default function Reports() {
                   <XAxis dataKey="day" fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} axisLine={false} />
                   <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} />
                   <RechartsTooltip
-                    formatter={(v: number) => [formatCurrency(v), "Sales"]}
+                    formatter={(v: number) => [formatCurrency(v), "Penjualan"]}
                     contentStyle={tooltipStyle}
                     itemStyle={{ color: "hsl(var(--primary))" }}
                     cursor={{ fill: "hsl(var(--secondary))", opacity: 0.4 }}
@@ -323,7 +323,7 @@ export default function Reports() {
                   <XAxis dataKey="month" fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} axisLine={false} />
                   <YAxis fontSize={11} stroke="hsl(var(--muted-foreground))" tickLine={false} axisLine={false} tickFormatter={v => `$${v}`} />
                   <RechartsTooltip
-                    formatter={(v: number) => [formatCurrency(v), "Sales"]}
+                    formatter={(v: number) => [formatCurrency(v), "Penjualan"]}
                     contentStyle={tooltipStyle}
                     itemStyle={{ color: "hsl(var(--chart-2))" }}
                     cursor={{ fill: "hsl(var(--secondary))", opacity: 0.4 }}
@@ -378,7 +378,7 @@ export default function Reports() {
                       width={100}
                     />
                     <RechartsTooltip
-                      formatter={(v: number) => [formatCurrency(v), "Revenue"]}
+                      formatter={(v: number) => [formatCurrency(v), "Pendapatan"]}
                       labelFormatter={(label, payload) =>
                         payload?.[0]?.payload?.fullName ?? label
                       }
@@ -430,7 +430,7 @@ export default function Reports() {
                       ))}
                     </Pie>
                     <RechartsTooltip
-                      formatter={(v: number) => [formatCurrency(v), "Revenue"]}
+                      formatter={(v: number) => [formatCurrency(v), "Pendapatan"]}
                       contentStyle={tooltipStyle}
                     />
                     <Legend
@@ -534,23 +534,23 @@ export default function Reports() {
           <CardContent className="pt-0 space-y-2.5">
             <InsightCard
               icon={<Flame size={14} className="text-orange-400" />}
-              label="Top selling today"
-              value={topToday ? `${topToday[0]}` : "No orders today"}
-              sub={topToday ? `${topToday[1]} sold today` : "Place some orders to see insights"}
+              label="Terlaris hari ini"
+              value={topToday ? `${topToday[0]}` : "Belum ada pesanan hari ini"}
+              sub={topToday ? `${topToday[1]}× terjual hari ini` : "Buat pesanan untuk melihat insight"}
               color="border-orange-500/20 bg-orange-500/5"
             />
             <InsightCard
               icon={<Clock size={14} className="text-blue-400" />}
-              label="Busiest order hour"
-              value={busiestHour ? busiestHour.label : "Not enough data"}
+              label="Jam tersibuk"
+              value={busiestHour ? busiestHour.label : "Data belum cukup"}
               sub={busiestHour ? `${busiestHour.count} order${busiestHour.count !== 1 ? "s" : ""} on average` : undefined}
               color="border-blue-500/20 bg-blue-500/5"
             />
             <InsightCard
               icon={<ShoppingCart size={14} className="text-emerald-400" />}
-              label="Often bought together"
-              value={topPair ? topPair[0] : "Not enough data"}
-              sub={topPair ? `Ordered together ${topPair[1]} time${topPair[1] !== 1 ? "s" : ""}` : "Need more multi-item orders"}
+              label="Sering dibeli bersama"
+              value={topPair ? topPair[0] : "Data belum cukup"}
+              sub={topPair ? `Dipesan bersama ${topPair[1]} kali` : "Perlu lebih banyak pesanan multi-item"}
               color="border-emerald-500/20 bg-emerald-500/5"
             />
 

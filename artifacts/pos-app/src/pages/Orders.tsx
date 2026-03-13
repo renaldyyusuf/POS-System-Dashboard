@@ -34,7 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 // ── Types ──────────────────────────────────────────────────────────────────
 
 type FilterTab = "all" | "pickup" | "ojol";
-type PaymentMethod = "Transfer Bank" | "QRIS";
+type PaymentMethod = "Transfer" | "QRIS";
 type FulfillmentMethod = "pickup" | "ojol";
 
 interface EditForm {
@@ -223,7 +223,7 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
     customer_name:          order.customer_name,
     customer_phone:         order.customer_phone,
     ready_date:             order.ready_date ? order.ready_date.slice(0, 16) : new Date().toISOString().slice(0, 16),
-    payment_method:         order.payment_method ?? "Transfer Bank",
+    payment_method:         order.payment_method ?? "Transfer",
     fulfillment_method:     (order.fulfillment_method as FulfillmentMethod) ?? "pickup",
     delivery_address:       order.delivery_address ?? "",
     delivery_notes:         order.delivery_notes ?? "",
@@ -240,7 +240,7 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
     setIsSaving(true);
     try {
       await updateOrder(order.id, {
-        customer_name:          form.customer_name || "Walk-in",
+        customer_name:          form.customer_name || "Tanpa Nama",
         customer_phone:         form.customer_phone,
         ready_date:             new Date(form.ready_date).toISOString(),
         payment_method:         form.payment_method,
@@ -272,7 +272,7 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Nama Customer</Label>
-              <Input className="bg-background border-border h-9 text-sm" placeholder="Walk-in"
+              <Input className="bg-background border-border h-9 text-sm" placeholder="Tanpa Nama"
                 value={form.customer_name} onChange={e => set("customer_name", e.target.value)} />
             </div>
             <div className="space-y-1.5">
@@ -310,14 +310,14 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
           <div className="space-y-1.5">
             <Label className="text-xs">Metode Pembayaran</Label>
             <div className="grid grid-cols-2 gap-2">
-              {(["Transfer Bank", "QRIS"] as PaymentMethod[]).map(m => (
+              {(["Transfer", "QRIS"] as PaymentMethod[]).map(m => (
                 <button key={m} type="button" onClick={() => set("payment_method", m)}
                   className={`py-2 rounded-lg text-sm font-semibold border-2 transition-all ${
                     form.payment_method === m
                       ? "border-primary bg-primary/10 text-primary"
                       : "border-border bg-background text-muted-foreground hover:border-primary/40"
                   }`}>
-                  {m === "Transfer Bank" ? "💳 Transfer Bank" : "📱 QRIS"}
+                  {m === "Transfer" ? "💳 Transfer Bank" : "📱 QRIS"}
                 </button>
               ))}
             </div>
