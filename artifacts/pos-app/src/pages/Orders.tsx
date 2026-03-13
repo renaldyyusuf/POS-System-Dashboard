@@ -647,6 +647,34 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
 
 // ── Main Page ──────────────────────────────────────────────────────────────
 
+// ── Order Receipt Modal ────────────────────────────────────────────────────
+
+function OrderReceiptModal({ order, onClose }: { order: Order; onClose: () => void }) {
+  const items = useLiveQuery(() => order.id ? getOrderItems(order.id) : [], [order.id]) ?? [];
+
+  const receipt: ReceiptData = {
+    orderId:           order.id!,
+    orderDate:         order.created_at,
+    readyDate:         order.ready_date || order.created_at,
+    customerName:      order.customer_name,
+    customerPhone:     toIndonesianPhone(order.customer_phone ?? ""),
+    paymentMethod:     order.payment_method,
+    fulfillmentMethod: (order.fulfillment_method as "pickup" | "ojol") ?? "pickup",
+    deliveryAddress:   order.delivery_address ?? "",
+    deliveryFee:       order.estimated_delivery_fee ?? 0,
+    notes:             order.notes ?? "",
+    items:             items.map(i => ({
+      product_name: i.product_name,
+      qty:          i.qty,
+      price:        i.price,
+      subtotal:     i.subtotal,
+    })),
+    total: order.total,
+  };
+
+  return <ReceiptModal receipt={receipt} onClose={onClose} />;
+}
+
 export default function Orders() {
   const { toast } = useToast();
   const [search, setSearch]       = useState("");
