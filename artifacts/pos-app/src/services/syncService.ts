@@ -89,14 +89,14 @@ export async function syncPendingOrders(gasUrl?: string): Promise<SyncResult> {
         delivery_address:   order.fulfillment_method === 'ojol' ? (order.delivery_address ?? '') : '',
       }));
 
-      // no-cors: browser can't read the response, but data reaches GAS.
-      // We optimistically mark as done — if the sheet URL is wrong the user
-      // will notice nothing appeared and can re-check via Test Connection.
+      // If order was previously synced, send as "update" so GAS deletes old rows first
+      const action = order.is_synced ? 'update' : 'insert';
+
       await fetch(url, {
         method:  'POST',
         mode:    'no-cors',
         headers: { 'Content-Type': 'text/plain' },
-        body:    JSON.stringify({ rows }),
+        body:    JSON.stringify({ action, order_id: order.id, rows }),
       });
 
       await markSyncDone(syncItem.order_id);
