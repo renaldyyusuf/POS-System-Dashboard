@@ -6,7 +6,6 @@ import {
   type Order, type OrderItem,
 } from "@/database/db";
 import { getGasUrl, syncPendingOrders } from "@/services/syncService";
-import { getPendingSyncCount } from "@/database/db";
 import { formatCurrency, formatDateTime } from "@/utils/format";
 import { ReceiptModal, type ReceiptData } from "@/components/ReceiptModal";
 import {
