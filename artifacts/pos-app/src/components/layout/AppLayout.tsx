@@ -1,11 +1,12 @@
 import { ReactNode, useState } from "react";
+import { useAuth } from "@/context/AuthContext";
 import { Link, useLocation } from "wouter";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import {
   Coffee, LayoutDashboard, ShoppingCart, Package,
   ClipboardList, KanbanSquare, BarChart3, Settings,
-  CalendarClock, MoreHorizontal, X,
+  CalendarClock, MoreHorizontal, X, LogOut,
 } from "lucide-react";
 
 const bottomNav = [
@@ -29,6 +30,7 @@ const BOTTOM_NAV_H = 64;
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [showMore, setShowMore] = useState(false);
+  const { storeName, logout } = useAuth();
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "4rem",
@@ -44,8 +46,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <div className="flex items-center gap-4">
               <SidebarTrigger className="hover:bg-secondary rounded-lg p-2 transition-colors" />
             </div>
-            <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-sm font-medium border border-border">
-              AD
+            <div className="flex items-center gap-2">
+              {storeName && <span className="text-sm font-medium text-muted-foreground hidden lg:block">{storeName}</span>}
+              <button onClick={logout} title="Keluar" className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center border border-border hover:bg-destructive/10 hover:text-destructive transition-colors">
+                <LogOut size={14} />
+              </button>
             </div>
           </header>
           <main className="flex-1 overflow-auto bg-background p-6 lg:p-8">
@@ -64,9 +69,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <Coffee size={18} className="text-primary" />
             <span className="font-display font-bold text-foreground">Lumina POS</span>
           </div>
-          <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-sm font-medium border border-border">
-            AD
-          </div>
+          <button onClick={logout} title="Keluar" className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center border border-border hover:bg-destructive/10 hover:text-destructive transition-colors">
+            <LogOut size={14} />
+          </button>
         </header>
 
         {/* Content — natural height, scrolls freely */}
