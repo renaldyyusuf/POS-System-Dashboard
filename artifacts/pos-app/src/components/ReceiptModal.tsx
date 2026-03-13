@@ -43,44 +43,56 @@ function Row({ label, value, bold }: { label: string; value: string; bold?: bool
 }
 
 function buildWhatsAppMessage(r: ReceiptData): string {
-  const divider = "─────────────────";
+  const line = "━━━━━━━━━━━━━━━━━";
   const isOjol = r.fulfillmentMethod === "ojol";
   const storeName = r.storeName || "Toko";
 
+  // Item list with subtotals
+  const subtotal = r.total - (isOjol ? r.deliveryFee : 0);
   const itemLines = r.items
-    .map(i => `  • ${i.qty}× ${i.product_name} — ${formatCurrency(i.subtotal)}`)
+    .map(i => `  ${i.qty}x ${i.product_name}\n     ${formatCurrency(i.subtotal)}`)
     .join("\n");
 
-  const pickupAddressLine = !isOjol && r.storeAddress
-    ? `\n📍 Alamat: ${r.storeAddress}` +
-      (r.mapsUrl ? `\n🗺️ Maps: ${r.mapsUrl}` : "")
+  // Fulfillment section
+  const fulfillmentSection = isOjol
+    ? `*[ANTAR OJOL]*\n` +
+      `📦 Alamat : ${r.deliveryAddress || "-"}\n` +
+      (r.deliveryFee > 0 ? `💸 Ongkir  : ${formatCurrency(r.deliveryFee)}\n` : "")
+    : `*[AMBIL SENDIRI]*\n` +
+      (r.storeAddress ? `📍 Lokasi  : ${r.storeAddress}\n` : "") +
+      (r.mapsUrl ? `🔗 Maps    : ${r.mapsUrl}\n` : "");
+
+  // Optional notes
+  const notesSection = r.notes
+    ? `${line}\n📌 Catatan : ${r.notes}\n`
     : "";
 
-  const deliveryLine = isOjol
-    ? `\n🛵 *Ojol Delivery*\n📍 Alamat: ${r.deliveryAddress || "-"}\n💰 Ongkir: ${formatCurrency(r.deliveryFee)}`
-    : `\n🏪 *Ambil Sendiri (Pickup)*${pickupAddressLine}`;
-
-  const notesLine = r.notes ? `\n📝 Catatan: ${r.notes}` : "";
-
   return (
-    `🧾 *${storeName} — Struk Pesanan*\n` +
-    `${divider}\n` +
-    `📋 No. Pesanan: *#${r.orderId}*\n` +
-    `📅 Tanggal: ${fmtDate(r.orderDate)}\n` +
-    `⏰ Siap: ${fmtDate(r.readyDate)}\n` +
-    `${divider}\n` +
-    `👤 *Pelanggan:* ${r.customerName}\n` +
-    (r.customerPhone ? `📞 ${r.customerPhone}\n` : "") +
-    `${divider}\n` +
-    `🛒 *ITEM PESANAN:*\n` +
+    `*${storeName}*\n` +
+    `🧾 Struk Pesanan\n` +
+    `${line}\n` +
+    `📋 No.      : *#${r.orderId}*\n` +
+    `📅 Tgl Order: ${fmtDate(r.orderDate)}\n` +
+    `⏰ Siap Pkl : ${fmtDate(r.readyDate)}\n` +
+    `${line}\n` +
+    `👤 Pelanggan: ${r.customerName}\n` +
+    (r.customerPhone ? `📞 Telp    : ${r.customerPhone}\n` : "") +
+    `${line}\n` +
+    `🛍 *ITEM PESANAN*\n` +
     `${itemLines}\n` +
-    `${divider}\n` +
-    `💵 *TOTAL: ${formatCurrency(r.total)}*\n` +
-    `💳 Pembayaran: ${r.paymentMethod}\n` +
-    deliveryLine +
-    notesLine +
-    `\n${divider}\n` +
-    `Terima kasih telah memesan! 🙏`
+    `${line}\n` +
+    (isOjol && r.deliveryFee > 0
+      ? `  Subtotal : ${formatCurrency(subtotal)}\n` +
+        `  Ongkir  : ${formatCurrency(r.deliveryFee)}\n`
+      : "") +
+    `  *TOTAL   : ${formatCurrency(r.total)}*\n` +
+    `💳 Bayar   : ${r.paymentMethod}\n` +
+    `${line}\n` +
+    fulfillmentSection +
+    notesSection +
+    `${line}\n` +
+    `✅ Terima kasih sudah memesan!\n` +
+    `Pesanan Anda sedang kami proses. 🙏`
   );
 }
 
