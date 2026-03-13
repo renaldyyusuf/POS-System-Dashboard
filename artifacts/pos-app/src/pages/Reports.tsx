@@ -1,7 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/database/db";
 import { exportFullReport } from "@/services/exportService";
-import { formatCurrency } from "@/utils/format";
+import { formatCurrency, formatCurrencyCompact } from "@/utils/format";
 import {
   Download, TrendingUp, TrendingDown, Lightbulb,
   Clock, ShoppingCart, Flame, Zap, Package,

@@ -1,6 +1,6 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/database/db";
-import { formatCurrency } from "@/utils/format";
+import { formatCurrency, formatCurrencyCompact } from "@/utils/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { DollarSign, ShoppingBag, TrendingUp, Clock } from "lucide-react";
@@ -55,10 +55,10 @@ export default function Dashboard() {
   const weekTotal = chartData.reduce((s, d) => s + d.sales, 0);
 
   const stats = [
-    { title: "Penjualan Hari Ini", value: formatCurrency(todaySales),  icon: DollarSign, color: "text-emerald-400", bg: "bg-emerald-400/10" },
+    { title: "Penjualan Hari Ini", value: formatCurrencyCompact(todaySales),  icon: DollarSign, color: "text-emerald-400", bg: "bg-emerald-400/10" },
     { title: "Pesanan Hari Ini",   value: String(todayOrders),          icon: ShoppingBag, color: "text-blue-400",    bg: "bg-blue-400/10" },
     { title: "Pesanan Aktif",      value: String(activeCount),           icon: Clock,       color: "text-amber-400",  bg: "bg-amber-400/10" },
-    { title: "Pendapatan 7 Hari",  value: formatCurrency(weekTotal),    icon: TrendingUp,  color: "text-primary",    bg: "bg-primary/10" },
+    { title: "Pendapatan 7 Hari",  value: formatCurrencyCompact(weekTotal),    icon: TrendingUp,  color: "text-primary",    bg: "bg-primary/10" },
   ];
 
   const recentList = [...(recentOrders || [])]
