@@ -1,10 +1,11 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import {
   Coffee, LayoutDashboard, ShoppingCart, Package,
   ClipboardList, KanbanSquare, BarChart3, Settings,
+  CalendarClock, MoreHorizontal, X,
 } from "lucide-react";
 
 const bottomNav = [
@@ -12,11 +13,19 @@ const bottomNav = [
   { title: "Kasir",     url: "/cashier",    icon: ShoppingCart },
   { title: "Pesanan",   url: "/orders",     icon: ClipboardList },
   { title: "Produksi",  url: "/production", icon: KanbanSquare },
-  { title: "Lainnya",   url: "/reports",    icon: BarChart3 },
+  { title: "Lainnya",   url: null,          icon: MoreHorizontal },
+];
+
+const moreMenu = [
+  { title: "Jadwal Produksi", url: "/schedule",  icon: CalendarClock },
+  { title: "Laporan",         url: "/reports",   icon: BarChart3 },
+  { title: "Produk",          url: "/products",  icon: Package },
+  { title: "Pengaturan Toko", url: "/settings",  icon: Settings },
 ];
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const [showMore, setShowMore] = useState(false);
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "4rem",
@@ -61,15 +70,27 @@ export function AppLayout({ children }: { children: ReactNode }) {
       {/* Bottom nav — mobile only */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border flex items-stretch">
         {bottomNav.map(item => {
-          const isActive = location === item.url;
+          const isActive = item.url ? location === item.url : moreMenu.some(m => m.url === location);
+          if (!item.url) {
+            return (
+              <button
+                key="more"
+                onClick={() => setShowMore(true)}
+                className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
+                  isActive ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                <item.icon size={20} className={isActive ? "text-primary" : "text-muted-foreground"} />
+                <span>{item.title}</span>
+              </button>
+            );
+          }
           return (
             <Link
               key={item.url}
               href={item.url}
               className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
-                isActive
-                  ? "text-primary"
-                  : "text-muted-foreground active:text-foreground"
+                isActive ? "text-primary" : "text-muted-foreground active:text-foreground"
               }`}
             >
               <item.icon size={20} className={isActive ? "text-primary" : "text-muted-foreground"} />
@@ -78,6 +99,36 @@ export function AppLayout({ children }: { children: ReactNode }) {
           );
         })}
       </nav>
+
+      {/* More drawer */}
+      {showMore && (
+        <div className="md:hidden fixed inset-0 z-[60] flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowMore(false)} />
+          <div className="relative bg-card border-t border-border rounded-t-2xl p-4 pb-8 space-y-1">
+            <div className="flex items-center justify-between mb-3">
+              <p className="font-bold text-sm">Menu Lainnya</p>
+              <button onClick={() => setShowMore(false)} className="h-8 w-8 flex items-center justify-center rounded-full text-muted-foreground hover:bg-secondary">
+                <X size={16} />
+              </button>
+            </div>
+            {moreMenu.map(item => (
+              <Link
+                key={item.url}
+                href={item.url}
+                onClick={() => setShowMore(false)}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
+                  location === item.url
+                    ? "bg-primary/10 text-primary font-semibold"
+                    : "text-foreground hover:bg-secondary"
+                }`}
+              >
+                <item.icon size={18} className={location === item.url ? "text-primary" : "text-muted-foreground"} />
+                <span className="text-sm font-medium">{item.title}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </SidebarProvider>
   );
 }
