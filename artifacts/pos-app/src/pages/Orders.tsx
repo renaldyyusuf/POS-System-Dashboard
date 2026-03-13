@@ -7,11 +7,12 @@ import {
 import { getGasUrl, syncPendingOrders } from "@/services/syncService";
 import { getPendingSyncCount } from "@/database/db";
 import { formatCurrency, formatDateTime } from "@/utils/format";
+import { ReceiptModal, type ReceiptData } from "@/components/ReceiptModal";
 import {
   FileText, Search, Eye, Pencil, Ban, ShoppingBag, Bike,
   User, Phone, Calendar, CreditCard, StickyNote, MapPin,
   MessageSquare, ChevronDown, AlertTriangle, Plus, Minus, Trash2, Package, ShoppingCart,
-  RefreshCw, CloudOff,
+  RefreshCw, CloudOff, MessageCircle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -219,6 +220,22 @@ function ViewModal({ order, onClose }: { order: Order; onClose: () => void }) {
 
 // ── Edit Modal ─────────────────────────────────────────────────────────────
 
+// Convert phone number to Indonesian format (+62...)
+function toIndonesianPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("62")) return digits;         // already +62
+  if (digits.startsWith("0")) return "62" + digits.slice(1); // 08xx → 628xx
+  return "62" + digits;                               // fallback
+}
+
+// Convert UTC ISO string → "YYYY-MM-DDTHH:mm" in local timezone (for datetime-local input)
+function toLocalDatetimeInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 // Local type for editable items
 interface EditableItem {
   product_name: string;
@@ -235,7 +252,7 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
   const [form, setForm] = useState<EditForm>({
     customer_name:          order.customer_name,
     customer_phone:         order.customer_phone,
-    ready_date:             order.ready_date ? order.ready_date.slice(0, 16) : new Date().toISOString().slice(0, 16),
+    ready_date:             order.ready_date ? toLocalDatetimeInput(order.ready_date) : toLocalDatetimeInput(new Date().toISOString()),
     payment_method:         order.payment_method ?? "Transfer",
     fulfillment_method:     (order.fulfillment_method as FulfillmentMethod) ?? "pickup",
     delivery_address:       order.delivery_address ?? "",
@@ -637,6 +654,7 @@ export default function Orders() {
   const [viewOrder, setViewOrder] = useState<Order | null>(null);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [voidTarget, setVoidTarget]   = useState<Order | null>(null);
+  const [receiptOrder, setReceiptOrder] = useState<Order | null>(null);
   const [isSyncing, setIsSyncing]     = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [isOnline, setIsOnline]         = useState(navigator.onLine);
@@ -821,6 +839,7 @@ export default function Orders() {
                   onView={() => setViewOrder(order)}
                   onEdit={() => !order.is_void && setEditOrder(order)}
                   onVoid={() => !order.is_void && setVoidTarget(order)}
+                  onWhatsApp={() => !order.is_void && setReceiptOrder(order)}
                 />
               ))
             )}
@@ -835,8 +854,9 @@ export default function Orders() {
         )}
       </Card>
 
-      {viewOrder  && <ViewModal order={viewOrder}  onClose={() => setViewOrder(null)} />}
-      {editOrder  && <EditModal order={editOrder}  onClose={() => setEditOrder(null)} />}
+      {viewOrder    && <ViewModal order={viewOrder}    onClose={() => setViewOrder(null)} />}
+      {editOrder    && <EditModal order={editOrder}    onClose={() => setEditOrder(null)} />}
+      {receiptOrder && <OrderReceiptModal order={receiptOrder} onClose={() => setReceiptOrder(null)} />}
 
       <AlertDialog open={!!voidTarget} onOpenChange={open => !open && setVoidTarget(null)}>
         <AlertDialogContent className="bg-card border-border">
@@ -873,12 +893,13 @@ export default function Orders() {
 // ── Order Table Row ────────────────────────────────────────────────────────
 
 function OrderTableRow({
-  order, onView, onEdit, onVoid,
+  order, onView, onEdit, onVoid, onWhatsApp,
 }: {
   order: Order;
   onView: () => void;
   onEdit: () => void;
   onVoid: () => void;
+  onWhatsApp: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const items = useLiveQuery<OrderItem[]>(
@@ -948,6 +969,15 @@ function OrderTableRow({
               disabled={order.is_void}
             >
               <Ban size={14} />
+            </Button>
+            <Button
+              variant="ghost" size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-[#25D366] hover:bg-[#25D366]/10"
+              title="Kirim struk via WhatsApp"
+              onClick={onWhatsApp}
+              disabled={order.is_void}
+            >
+              <MessageCircle size={14} />
             </Button>
             <button
               className="h-8 w-8 flex items-center justify-center text-muted-foreground/50 hover:text-muted-foreground transition-colors"
