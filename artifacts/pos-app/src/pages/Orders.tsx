@@ -833,6 +833,61 @@ export default function Orders() {
       </div>
 
       <Card className="bg-card border-border shadow-xl shadow-black/10 overflow-hidden">
+
+        {/* ── Mobile card list ── */}
+        <div className="sm:hidden divide-y divide-border/50">
+          {filtered.length === 0 ? (
+            <div className="h-48 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+              <FileText className="h-10 w-10 opacity-15" />
+              <p className="text-sm">{search ? "Coba kata kunci lain." : "Pesanan akan muncul setelah dibuat."}</p>
+            </div>
+          ) : filtered.map(order => (
+            <div
+              key={order.id}
+              className={`px-4 py-3 space-y-2 ${order.is_void ? "opacity-50 bg-destructive/5" : ""}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-xs font-bold text-primary/90">#{order.id}</span>
+                    <StatusBadge order={order} />
+                    <FulfillmentBadge method={order.fulfillment_method} />
+                  </div>
+                  <p className="font-semibold text-sm mt-1">{order.customer_name}</p>
+                  {order.customer_phone && (
+                    <p className="text-xs text-muted-foreground">{order.customer_phone}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Siap: {formatDateTime(order.ready_date)}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className={`font-bold text-sm tabular-nums ${order.is_void ? "line-through text-muted-foreground" : "text-primary"}`}>
+                    {formatCurrency(order.total)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{order.payment_method}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 justify-end border-t border-border/30 pt-2">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => setViewOrder(order)}>
+                  <Eye size={14} />
+                </Button>
+                <Button variant="ghost" size="icon" className={`h-8 w-8 ${order.is_void ? "opacity-30" : "text-muted-foreground hover:text-blue-400"}`} disabled={order.is_void} onClick={() => !order.is_void && setEditOrder(order)}>
+                  <Pencil size={14} />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-[#25D366]" disabled={order.is_void} onClick={() => !order.is_void && setReceiptOrder(order)}>
+                  <MessageCircle size={14} />
+                </Button>
+                <Button variant="ghost" size="icon" className={`h-8 w-8 ${order.is_void ? "opacity-30" : "text-muted-foreground hover:text-destructive"}`} disabled={order.is_void} onClick={() => !order.is_void && setVoidTarget(order)}>
+                  <Ban size={14} />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── Desktop table ── */}
+        <div className="hidden sm:block">
         <Table>
           <TableHeader className="bg-secondary/50">
             <TableRow className="border-border/50 hover:bg-transparent">
@@ -855,9 +910,7 @@ export default function Orders() {
                     <div>
                       <p className="font-medium">Pesanan tidak ditemukan</p>
                       <p className="text-sm mt-1">
-                        {search
-                          ? "Coba kata kunci lain."
-                          : "Pesanan akan muncul setelah dibuat."}
+                        {search ? "Coba kata kunci lain." : "Pesanan akan muncul setelah dibuat."}
                       </p>
                     </div>
                   </div>
@@ -877,6 +930,7 @@ export default function Orders() {
             )}
           </TableBody>
         </Table>
+        </div>
 
         {filtered.length > 0 && (
           <div className="px-5 py-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">

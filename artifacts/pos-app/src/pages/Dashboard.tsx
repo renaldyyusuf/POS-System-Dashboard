@@ -67,19 +67,19 @@ export default function Dashboard() {
     .slice(0, 6);
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-5 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Dashboard</h1>
+        <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground">Dashboard</h1>
         <p className="text-muted-foreground mt-1">Ringkasan performa toko hari ini.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         {stats.map((stat, i) => (
           <Card key={i} className="bg-card border-border hover:border-primary/30 transition-colors shadow-lg shadow-black/20">
-            <CardContent className="p-6 flex items-center justify-between">
+            <CardContent className="p-4 md:p-6 flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                <h3 className="text-3xl font-bold font-display text-foreground mt-2">{stat.value}</h3>
+                <h3 className="text-2xl md:text-3xl font-bold font-display text-foreground mt-1.5">{stat.value}</h3>
               </div>
               <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${stat.bg}`}>
                 <stat.icon className={`h-6 w-6 ${stat.color}`} />
@@ -89,13 +89,13 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         <Card className="lg:col-span-2 bg-card border-border shadow-lg shadow-black/20">
           <CardHeader>
             <CardTitle className="font-display">Ringkasan Pendapatan (7 Hari Terakhir)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="h-[320px] w-full">
+            <div className="h-[220px] sm:h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />

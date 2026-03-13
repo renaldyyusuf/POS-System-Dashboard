@@ -102,6 +102,37 @@ export default function Products() {
           </span>
         </div>
 
+        {/* Mobile card list */}
+        <div className="sm:hidden divide-y divide-border/50">
+          {filteredProducts.length === 0 ? (
+            <div className="h-48 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+              <PackageOpen className="h-10 w-10 opacity-15" />
+              <p className="text-sm">{search ? "Coba kata kunci lain." : "Belum ada produk."}</p>
+            </div>
+          ) : filteredProducts.map((product, index) => (
+            <div key={product.id} className="flex items-center gap-3 px-4 py-3">
+              <span className="text-xs text-muted-foreground font-mono w-5 shrink-0">{index + 1}</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-sm text-foreground truncate">{product.name}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full border border-border">{product.portion_size}</span>
+                  <span className="text-sm font-bold text-primary tabular-nums">{formatCurrency(product.price)}</span>
+                </div>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-blue-400" onClick={() => openEditModal(product)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => setDeleteTarget(product)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden sm:block">
         <Table>
           <TableHeader className="bg-secondary/50">
             <TableRow className="border-border/50 hover:bg-transparent">
@@ -122,9 +153,7 @@ export default function Products() {
                     <div>
                       <p className="font-medium">Produk tidak ditemukan</p>
                       <p className="text-sm mt-1">
-                        {search
-                          ? "Coba kata kunci lain."
-                          : 'Klik "Tambah Produk" untuk memulai.'}
+                        {search ? "Coba kata kunci lain." : 'Klik "Tambah Produk" untuk memulai.'}
                       </p>
                     </div>
                   </div>
@@ -148,20 +177,10 @@ export default function Products() {
                   </TableCell>
                   <TableCell className="text-right pr-6">
                     <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost" size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-blue-400 hover:bg-blue-400/10"
-                        onClick={() => openEditModal(product)}
-                        title="Edit produk"
-                      >
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-blue-400 hover:bg-blue-400/10" onClick={() => openEditModal(product)} title="Edit produk">
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
-                      <Button
-                        variant="ghost" size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => setDeleteTarget(product)}
-                        title="Hapus produk"
-                      >
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteTarget(product)} title="Hapus produk">
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -171,6 +190,7 @@ export default function Products() {
             )}
           </TableBody>
         </Table>
+        </div>
       </Card>
 
       {/* Add / Edit Modal */}

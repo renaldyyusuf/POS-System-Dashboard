@@ -225,7 +225,7 @@ export default function Reports() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Reports</h1>
+          <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground">Reports</h1>
           <p className="text-muted-foreground mt-1">Sales analytics, product performance, and insights.</p>
         </div>
         <Button

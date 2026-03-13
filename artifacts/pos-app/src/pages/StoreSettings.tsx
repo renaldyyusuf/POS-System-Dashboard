@@ -316,7 +316,7 @@ export default function StoreSettings() {
     <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-500 pb-8">
 
       <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Pengaturan Toko</h1>
+        <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground">Pengaturan Toko</h1>
         <p className="text-muted-foreground mt-1">Atur informasi toko dan detail pembayaran.</p>
       </div>
 

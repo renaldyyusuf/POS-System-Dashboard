@@ -269,8 +269,8 @@ export default function ProductionBoard() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-x-auto pb-2">
-        <div className="grid grid-cols-2 xl:grid-cols-3 gap-4 h-full min-w-[480px] min-h-[400px]">
+      <div className="flex-1 min-h-0 pb-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 h-full min-h-[400px]">
           {COLUMNS.map(col => (
             <KanbanColumn
               key={col.id}

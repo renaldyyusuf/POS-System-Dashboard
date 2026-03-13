@@ -420,7 +420,7 @@ export default function ProductionSchedule() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Jadwal Produksi</h1>
+          <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground">Jadwal Produksi</h1>
           <p className="text-muted-foreground mt-1">
             Pesanan dikelompokkan otomatis berdasarkan waktu siap. Seret kartu untuk mengubah status.
           </p>
