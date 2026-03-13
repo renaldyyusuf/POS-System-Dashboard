@@ -23,6 +23,9 @@ const moreMenu = [
   { title: "Pengaturan Toko", url: "/settings",  icon: Settings },
 ];
 
+// Height of bottom nav in px — used to offset scrollable content
+const BOTTOM_NAV_H = 64;
+
 export function AppLayout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
   const [showMore, setShowMore] = useState(false);
@@ -33,33 +36,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider style={style}>
-      <div className="flex h-screen w-full bg-background overflow-hidden selection:bg-primary/30">
-        {/* Sidebar — hidden on mobile */}
-        <div className="hidden md:block">
-          <AppSidebar />
-        </div>
-
+      {/* ── Desktop: sidebar + fixed-height layout ── */}
+      <div className="hidden md:flex h-screen w-full bg-background overflow-hidden selection:bg-primary/30">
+        <AppSidebar />
         <div className="flex flex-col flex-1 w-full min-w-0">
-          {/* Header */}
-          <header className="h-14 md:h-16 flex items-center justify-between px-4 md:px-6 border-b border-border bg-card/50 backdrop-blur-sm z-10 shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="hidden md:block">
-                <SidebarTrigger className="hover:bg-secondary rounded-lg p-2 transition-colors" />
-              </div>
-              <div className="flex items-center gap-2">
-                <Coffee size={18} className="text-primary" />
-                <span className="font-display font-bold text-foreground">Lumina POS</span>
-              </div>
+          <header className="h-16 flex items-center justify-between px-6 border-b border-border bg-card/50 backdrop-blur-sm z-10 shrink-0">
+            <div className="flex items-center gap-4">
+              <SidebarTrigger className="hover:bg-secondary rounded-lg p-2 transition-colors" />
             </div>
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-sm font-medium border border-border">
-                AD
-              </div>
+            <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-sm font-medium border border-border">
+              AD
             </div>
           </header>
-
-          {/* Main content — extra bottom padding on mobile for bottom nav */}
-          <main className="flex-1 overflow-y-auto bg-background p-3 md:p-6 lg:p-8 pb-36 md:pb-8">
+          <main className="flex-1 overflow-auto bg-background p-6 lg:p-8">
             <div className="max-w-7xl mx-auto w-full h-full">
               {children}
             </div>
@@ -67,10 +56,36 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* Bottom nav — mobile only */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border flex items-stretch" style={{paddingBottom: "env(safe-area-inset-bottom)"}}>
+      {/* ── Mobile: natural scroll layout (no h-screen clip) ── */}
+      <div className="md:hidden flex flex-col min-h-screen w-full bg-background selection:bg-primary/30">
+        {/* Header */}
+        <header className="sticky top-0 z-10 h-14 flex items-center justify-between px-4 border-b border-border bg-card/80 backdrop-blur-sm shrink-0">
+          <div className="flex items-center gap-2">
+            <Coffee size={18} className="text-primary" />
+            <span className="font-display font-bold text-foreground">Lumina POS</span>
+          </div>
+          <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center text-sm font-medium border border-border">
+            AD
+          </div>
+        </header>
+
+        {/* Content — natural height, scrolls freely */}
+        <main className="flex-1 bg-background p-3" style={{ paddingBottom: BOTTOM_NAV_H + 24 }}>
+          <div className="max-w-7xl mx-auto w-full">
+            {children}
+          </div>
+        </main>
+      </div>
+
+      {/* ── Bottom nav — mobile only, fixed ── */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border flex items-stretch"
+        style={{ height: BOTTOM_NAV_H }}
+      >
         {bottomNav.map(item => {
-          const isActive = item.url ? location === item.url : moreMenu.some(m => m.url === location);
+          const isActive = item.url
+            ? location === item.url
+            : moreMenu.some(m => m.url === location);
           if (!item.url) {
             return (
               <button
@@ -90,7 +105,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               key={item.url}
               href={item.url}
               className={`flex-1 flex flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
-                isActive ? "text-primary" : "text-muted-foreground active:text-foreground"
+                isActive ? "text-primary" : "text-muted-foreground"
               }`}
             >
               <item.icon size={20} className={isActive ? "text-primary" : "text-muted-foreground"} />
@@ -100,11 +115,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
         })}
       </nav>
 
-      {/* More drawer */}
+      {/* ── More drawer ── */}
       {showMore && (
         <div className="md:hidden fixed inset-0 z-[60] flex flex-col justify-end">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowMore(false)} />
-          <div className="relative bg-card border-t border-border rounded-t-2xl p-4 pb-8 space-y-1">
+          <div className="relative bg-card border-t border-border rounded-t-2xl p-4 space-y-1" style={{ paddingBottom: BOTTOM_NAV_H + 16 }}>
             <div className="flex items-center justify-between mb-3">
               <p className="font-bold text-sm">Menu Lainnya</p>
               <button onClick={() => setShowMore(false)} className="h-8 w-8 flex items-center justify-center rounded-full text-muted-foreground hover:bg-secondary">
