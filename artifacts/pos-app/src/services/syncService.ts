@@ -89,8 +89,9 @@ export async function syncPendingOrders(gasUrl?: string): Promise<SyncResult> {
         delivery_address:   order.fulfillment_method === 'ojol' ? (order.delivery_address ?? '') : '',
       }));
 
-      // If order was previously synced, send as "update" so GAS deletes old rows first
-      const action = order.is_synced ? 'update' : 'insert';
+      // 'update' = pesanan diedit → GAS akan hapus baris lama dulu
+      // 'insert' = pesanan baru → GAS langsung append
+      const action = syncItem.action === 'update' ? 'update' : 'insert';
 
       await fetch(url, {
         method:  'POST',
