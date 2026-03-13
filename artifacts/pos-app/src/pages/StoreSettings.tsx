@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { db, type StoreSettings } from "@/database/db";
+import { getStoreSettings, saveStoreSettings, type StoreSettings } from "@/database/db";
 import {
   Save, Store, Phone, MapPin, Building2, CreditCard,
   User, FileText, CheckCircle2, Plus, Trash2, QrCode, Upload, X,
@@ -56,21 +56,7 @@ const defaultForm = (): FormData => ({
   maps_url: "",
 });
 
-// ── DB helpers ─────────────────────────────────────────────────────────────
-
-async function getStoreSettings(): Promise<StoreSettings | undefined> {
-  return db.store_settings.toCollection().first();
-}
-
-async function saveStoreSettings(data: FormData): Promise<void> {
-  const existing = await getStoreSettings();
-  const now = new Date().toISOString();
-  if (existing?.id) {
-    await db.store_settings.update(existing.id, { ...data, updated_at: now });
-  } else {
-    await db.store_settings.add({ ...data, created_at: now, updated_at: now });
-  }
-}
+// ── DB helpers moved to db.ts ────────────────────────────────────────────
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
-import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "@/database/db";
+import { useState, useEffect } from "react";
+import { onOrdersSnapshot, type Order } from "@/database/db";
 import { formatCurrency, formatCurrencyCompact } from "@/utils/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
@@ -24,13 +24,13 @@ const STATUS_COLOR: Record<string, string> = {
 export default function Dashboard() {
   const today = startOfDay(new Date());
 
-  const recentOrders = useLiveQuery(() =>
-    db.orders.where("created_at").aboveOrEqual(subDays(today, 6).toISOString()).toArray()
-  );
+  const [allOrders, setAllOrders] = useState<Order[]>([]);
+  useEffect(() => onOrdersSnapshot(setAllOrders), []);
 
-  const allActiveOrders = useLiveQuery(() =>
-    db.orders.where("status").noneOf(["delivered"]).toArray()
+  const recentOrders = allOrders.filter(o =>
+    new Date(o.created_at) >= subDays(today, 6)
   );
+  const allActiveOrders = allOrders.filter(o => o.status !== "delivered");
 
   const todaySales = (recentOrders || [])
     .filter(o => isAfter(new Date(o.created_at), today) && !o.is_void)

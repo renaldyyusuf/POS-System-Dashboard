@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
-import { db, addProduct, updateProduct, deleteProduct, type Product } from "@/database/db";
+import { useState, useEffect } from "react";
+import { onProductsSnapshot, addProduct, updateProduct, deleteProduct, type Product } from "@/database/db";
 import { formatCurrency, formatDate } from "@/utils/format";
 import { Plus, Pencil, Trash2, Search, PackageOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -30,7 +29,8 @@ export default function Products() {
   const [deleteTarget, setDeleteTarget]   = useState<Product | null>(null);
   const { toast } = useToast();
 
-  const products = useLiveQuery(() => db.products.orderBy("created_at").reverse().toArray()) || [];
+  const [products, setProducts] = useState<Product[]>([]);
+  useEffect(() => onProductsSnapshot(setProducts), []);
 
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||

@@ -1,5 +1,5 @@
-import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "@/database/db";
+import { useState, useEffect } from "react";
+import { onOrdersSnapshot, getOrderItems, type Order, type OrderItem } from "@/database/db";
 import { exportFullReport } from "@/services/exportService";
 import { formatCurrency, formatCurrencyCompact } from "@/utils/format";
 import {

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
 import {
-  db, getOrderItems, voidOrder, updateOrder, replaceOrderItems, requeueOrderSync,
+  onOrdersSnapshot, getOrderItems, onOrderItemsSnapshot,
+  voidOrder, updateOrder, replaceOrderItems, requeueOrderSync,
+  getPendingSyncCount,
   type Order, type OrderItem,
 } from "@/database/db";
 import { getGasUrl, syncPendingOrders } from "@/services/syncService";
@@ -107,7 +108,8 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
 // ── View Modal ─────────────────────────────────────────────────────────────
 
 function ViewModal({ order, onClose }: { order: Order; onClose: () => void }) {
-  const items = useLiveQuery(() => order.id ? getOrderItems(order.id) : [], [order.id]) ?? [];
+  const [items, setItems] = useState<OrderItem[]>([]);
+  useEffect(() => { if (order.id) return onOrderItemsSnapshot(order.id, setItems); }, [order.id]);
 
   return (
     <Dialog open onOpenChange={open => !open && onClose()}>
@@ -650,8 +652,10 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
 // ── Order Receipt Modal ────────────────────────────────────────────────────
 
 function OrderReceiptModal({ order, onClose }: { order: Order; onClose: () => void }) {
-  const items = useLiveQuery(() => order.id ? getOrderItems(order.id) : [], [order.id]) ?? [];
-  const storeSettings = useLiveQuery(() => db.store_settings.toCollection().first());
+  const [items, setItems] = useState<OrderItem[]>([]);
+  const [storeSettings, setStoreSettings] = useState<any>(undefined);
+  useEffect(() => { if (order.id) return onOrderItemsSnapshot(order.id, setItems); }, [order.id]);
+  useEffect(() => { import("@/database/db").then(m => m.onSettingsSnapshot(setStoreSettings)); return () => {}; }, []);
 
   const receipt: ReceiptData = {
     orderId:           order.id!,
@@ -703,9 +707,8 @@ export default function Orders() {
     };
   }, []);
 
-  const orders = useLiveQuery(() =>
-    db.orders.orderBy("created_at").reverse().toArray()
-  ) ?? [];
+  const [orders, setOrders] = useState<Order[]>([]);
+  useEffect(() => onOrdersSnapshot(setOrders), []);
 
   const filtered = orders.filter(o => {
     const matchesSearch =
@@ -988,10 +991,11 @@ function OrderTableRow({
   onWhatsApp: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const items = useLiveQuery<OrderItem[]>(
-    () => expanded && order.id ? getOrderItems(order.id) : Promise.resolve([]),
-    [expanded, order.id]
-  ) ?? [];
+  const [items, setItems] = useState<OrderItem[]>([]);
+  useEffect(() => {
+    if (expanded && order.id) return onOrderItemsSnapshot(order.id, setItems);
+    else setItems([]);
+  }, [expanded, order.id]);
 
   return (
     <>

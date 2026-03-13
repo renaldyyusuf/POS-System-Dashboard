@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
 import {
-  db, createOrder, saveOrderItems, addToSyncQueue,
-  type Product,
+  onProductsSnapshot, onSettingsSnapshot,
+  createOrder, saveOrderItems, addToSyncQueue,
+  type Product, type StoreSettings,
 } from "@/database/db";
 import { useCart, type CartItem } from "@/hooks/useCart";
 import { formatCurrency } from "@/utils/format";
@@ -78,7 +78,8 @@ export default function Cashier() {
   const cart = useCart();
 
   // Load QRIS image from store settings to enable/disable QRIS payment
-  const storeSettings = useLiveQuery(() => db.store_settings.toCollection().first());
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | undefined>(undefined);
+  useEffect(() => onSettingsSnapshot(setStoreSettings), []);
   const qrisImage = storeSettings?.qris_image ?? "";
 
   const products = useLiveQuery(() => db.products.toArray(), []) || [];
