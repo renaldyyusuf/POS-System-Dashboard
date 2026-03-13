@@ -4,6 +4,8 @@ import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/utils/format";
 import { format } from "date-fns";
 
+// ── Types ──────────────────────────────────────────────────────────────────
+
 export interface ReceiptData {
   orderId: number;
   orderDate: string;
@@ -19,6 +21,8 @@ export interface ReceiptData {
   total: number;
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
 const STORE_NAME = "Lumina POS";
 
 function fmtDate(iso: string) {
@@ -27,6 +31,15 @@ function fmtDate(iso: string) {
   } catch {
     return iso;
   }
+}
+
+function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={bold ? "font-bold" : ""}>{value}</span>
+    </div>
+  );
 }
 
 function buildWhatsAppMessage(r: ReceiptData): string {
@@ -65,6 +78,8 @@ function buildWhatsAppMessage(r: ReceiptData): string {
   );
 }
 
+// ── Component ──────────────────────────────────────────────────────────────
+
 export function ReceiptModal({
   receipt,
   onClose,
@@ -80,7 +95,6 @@ export function ReceiptModal({
     : `https://wa.me/?text=${encodeURIComponent(message)}`;
 
   return (
-    /* Backdrop */
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full max-w-sm bg-card border border-border rounded-2xl shadow-2xl shadow-black/40 overflow-hidden animate-in zoom-in-95 duration-200">
 
