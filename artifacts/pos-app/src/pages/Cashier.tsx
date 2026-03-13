@@ -68,6 +68,7 @@ export default function Cashier() {
   const [form, setForm] = useState<OrderForm>(defaultForm());
   const [isSaving, setIsSaving] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"products" | "cart">("products");
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
 
   // Google Sheets sync state
@@ -108,6 +109,7 @@ export default function Cashier() {
     if (!selectedProduct) return;
     cart.addItem(selectedProduct as any, qtyInput);
     setSelectedProduct(null);
+    setMobileTab("cart");
     toast({ title: "Ditambahkan ke keranjang", description: `${qtyInput}× ${selectedProduct.name} ditambahkan` });
   };
 
@@ -124,7 +126,7 @@ export default function Cashier() {
         : now;
 
       const orderId = await createOrder({
-        customer_name: form.customer_name || "Tanpa Nama",
+        customer_name: form.customer_name || "Tanpa nama",
         customer_phone: form.customer_phone,
         ready_date: readyIso,
         payment_method: form.payment_method,
@@ -165,7 +167,7 @@ export default function Cashier() {
         orderId,
         orderDate: now,
         readyDate: readyIso,
-        customerName: form.customer_name || "Tanpa Nama",
+        customerName: form.customer_name || "Tanpa nama",
         customerPhone: form.customer_phone,
         paymentMethod: form.payment_method,
         fulfillmentMethod: form.fulfillment_method,
@@ -199,8 +201,37 @@ export default function Cashier() {
   return (
     <div className="flex flex-col xl:flex-row gap-5 h-full animate-in fade-in duration-500">
 
+      {/* ── Mobile Tab Switcher (hidden on xl+) ── */}
+      <div className="flex xl:hidden shrink-0 bg-secondary/60 rounded-xl p-1 gap-1 border border-border">
+        <button
+          onClick={() => setMobileTab("products")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+            mobileTab === "products"
+              ? "bg-card text-foreground shadow-sm border border-border"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Package size={15} /> Produk
+        </button>
+        <button
+          onClick={() => setMobileTab("cart")}
+          className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+            mobileTab === "cart"
+              ? "bg-card text-foreground shadow-sm border border-border"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <ShoppingCart size={15} /> Keranjang
+          {cart.items.length > 0 && (
+            <span className="bg-primary text-primary-foreground text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
+              {cart.items.reduce((s, i) => s + i.qty, 0)}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* ── LEFT: Product Grid ── */}
-      <div className="flex-1 flex flex-col gap-4 min-h-0">
+      <div className={`flex-1 flex flex-col gap-4 min-h-0 ${mobileTab === "cart" ? "hidden xl:flex" : "flex"}`}>
 
         {/* Search + sync controls */}
         <div className="flex gap-2 shrink-0">
@@ -258,7 +289,7 @@ export default function Cashier() {
       </div>
 
       {/* ── RIGHT: Cart + Order Form ── */}
-      <div className="w-full xl:w-[460px] shrink-0 flex flex-col bg-card border border-border rounded-2xl shadow-xl shadow-black/20 overflow-hidden">
+      <div className={`w-full xl:w-[460px] shrink-0 flex-col bg-card border border-border rounded-2xl shadow-xl shadow-black/20 overflow-hidden ${mobileTab === "products" ? "hidden xl:flex" : "flex"}`}>
 
         {/* Cart header */}
         <div className="px-5 py-4 border-b border-border flex items-center justify-between">
@@ -349,7 +380,7 @@ export default function Cashier() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Customer Name</Label>
                 <Input
-                  placeholder="Tanpa Nama"
+                  placeholder="Tanpa nama"
                   className="bg-background border-border h-9 text-sm"
                   value={form.customer_name}
                   onChange={e => setField("customer_name", e.target.value)}
@@ -358,7 +389,7 @@ export default function Cashier() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Phone</Label>
                 <Input
-                  placeholder="Optional"
+                  placeholder="Opsional"
                   type="tel"
                   className="bg-background border-border h-9 text-sm"
                   value={form.customer_phone}
@@ -465,7 +496,7 @@ export default function Cashier() {
                 <div className="space-y-1.5">
                   <Label className="text-xs">Delivery Notes</Label>
                   <Input
-                    placeholder="e.g. Leave at door, call on arrival"
+                    placeholder="cth. Titip di depan pintu, hubungi saat tiba"
                     className="bg-background border-border h-9 text-sm"
                     value={form.delivery_notes}
                     onChange={e => setField("delivery_notes", e.target.value)}
@@ -491,7 +522,7 @@ export default function Cashier() {
             <div className="space-y-1.5">
               <Label className="text-xs">Order Notes</Label>
               <Textarea
-                placeholder="Special instructions, allergies, etc."
+                placeholder="Instruksi khusus, alergi, dll."
                 className="bg-background border-border text-sm resize-none min-h-[60px]"
                 value={form.notes}
                 onChange={e => setField("notes", e.target.value)}
