@@ -275,6 +275,31 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
     });
   };
 
+  const setItemQty = (idx: number, val: string) => {
+    const n = parseInt(val, 10);
+    setEditItems(prev => {
+      if (!prev) return prev;
+      const next = [...prev];
+      if (!val || n <= 0) {
+        // keep field editable, just store 1 as minimum when blurred
+        next[idx] = { ...next[idx], qty: isNaN(n) ? 1 : Math.max(1, n) };
+      } else {
+        next[idx] = { ...next[idx], qty: n };
+      }
+      return next;
+    });
+  };
+
+  const setItemQty = (idx: number, val: number) => {
+    if (isNaN(val) || val < 1) return;
+    setEditItems(prev => {
+      if (!prev) return prev;
+      const next = [...prev];
+      next[idx] = { ...next[idx], qty: val };
+      return next;
+    });
+  };
+
   const removeItem = (idx: number) =>
     setEditItems(prev => prev ? prev.filter((_, i) => i !== idx) : prev);
 
@@ -516,7 +541,14 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
                               className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-background transition-colors">
                               <Minus size={12} />
                             </button>
-                            <span className="w-7 text-center text-sm font-bold tabular-nums">{item.qty}</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.qty}
+                              onChange={e => setItemQty(idx, e.target.value)}
+                              onBlur={e => { if (!e.target.value || parseInt(e.target.value) < 1) setItemQty(idx, "1"); }}
+                              className="w-10 text-center text-sm font-bold tabular-nums bg-transparent border-none outline-none focus:ring-1 focus:ring-primary/40 rounded [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
                             <button onClick={() => updateItemQty(idx, +1)}
                               className="h-7 w-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-background transition-colors">
                               <Plus size={12} />

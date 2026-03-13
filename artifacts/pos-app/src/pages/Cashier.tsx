@@ -767,7 +767,7 @@ export default function Cashier() {
         ContentService.MimeType.JSON);
     }
 
-    // If action is "update", delete existing rows for this order_id first
+    // Jika pesanan diedit, hapus semua baris lama dengan No. Pesanan yang sama
     if (data.action === "update" && data.order_id) {
       var lastRow = sheet.getLastRow();
       if (lastRow > 1) {
@@ -780,6 +780,7 @@ export default function Cashier() {
       }
     }
 
+    // Tulis data baru
     data.rows.forEach(function(row) {
       sheet.appendRow([
         data.order_id,
