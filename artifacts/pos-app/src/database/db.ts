@@ -52,6 +52,7 @@ export interface StoreSettings {
   bank_account_holder: string;
   additional_notes: string;
   bank_accounts: string; // JSON: BankAccount[]
+  qris_image: string;   // base64 data URL of the QRIS image
   created_at: string;
   updated_at: string;
 }
@@ -99,6 +100,17 @@ export class SmartPOSDatabase extends Dexie {
           }
           s.bank_accounts = JSON.stringify(legacy);
         }
+      });
+    });
+    this.version(4).stores({
+      products: '++id, name, price, portion_size, created_at',
+      orders: '++id, customer_name, customer_phone, created_at, ready_date, payment_method, total, status, fulfillment_method, is_void, is_synced',
+      order_items: '++id, order_id, product_name, qty, price, subtotal',
+      sync_queue: '++id, order_id, created_at, status',
+      store_settings: '++id',
+    }).upgrade(tx => {
+      return tx.table('store_settings').toCollection().modify((s: any) => {
+        if (!s.qris_image) s.qris_image = '';
       });
     });
   }
@@ -164,6 +176,36 @@ export async function getOrderById(id: number): Promise<Order | undefined> {
 
 export async function updateOrder(id: number, data: Partial<Omit<Order, 'id' | 'created_at' | 'is_synced'>>): Promise<void> {
   await db.orders.update(id, data);
+}
+
+/**
+ * Replace all items for an order and recalculate total.
+ * Used when editing order items — deletes old rows and inserts new ones.
+ */
+export async function replaceOrderItems(
+  order_id: number,
+  items: Omit<OrderItem, 'id'>[],
+): Promise<void> {
+  const total = items.reduce((s, i) => s + i.subtotal, 0);
+  await db.transaction('rw', db.order_items, db.orders, async () => {
+    await db.order_items.where('order_id').equals(order_id).delete();
+    if (items.length > 0) await db.order_items.bulkAdd(items);
+    await db.orders.update(order_id, { total, is_synced: false });
+  });
+}
+
+/**
+ * Re-queue an already-synced order for re-sync (after editing).
+ * Resets or creates a sync_queue entry so the order will be re-sent as an update.
+ */
+export async function requeueOrderSync(order_id: number): Promise<void> {
+  const existing = await db.sync_queue.where('order_id').equals(order_id).first();
+  if (existing) {
+    await db.sync_queue.where('order_id').equals(order_id).modify({ status: 'pending' });
+  } else {
+    await db.sync_queue.add({ order_id, created_at: new Date().toISOString(), status: 'pending' });
+  }
+  await db.orders.update(order_id, { is_synced: false });
 }
 
 // ─── Sync Queue ───────────────────────────────────────────────────────────────
