@@ -1,14 +1,14 @@
-// ─── Firestore Database Layer ─────────────────────────────────────────────────
-// Replaces the old Dexie/IndexedDB implementation.
-// All data is now stored in Firebase Firestore — accessible from any device.
+// ─── Firestore Database Layer (multi-store, per-user data isolation) ──────────
+// Each user's data lives under stores/{uid}/... so stores never see each other's data.
 
 import {
   collection, doc, addDoc, updateDoc, deleteDoc,
   getDocs, getDoc, query, orderBy, where,
-  onSnapshot, writeBatch, serverTimestamp,
-  type Unsubscribe, Timestamp,
+  onSnapshot, writeBatch,
+  type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "@/database/firebase";
+import { auth } from "@/database/firebase";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -71,15 +71,21 @@ export interface StoreSettings {
   updated_at: string;
 }
 
-// ─── Collection refs ─────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const productsCol    = () => collection(db, "products");
-const ordersCol      = () => collection(db, "orders");
-const orderItemsCol  = () => collection(db, "order_items");
-const syncQueueCol   = () => collection(db, "sync_queue");
-const settingsCol    = () => collection(db, "store_settings");
+function uid(): string {
+  const u = auth.currentUser;
+  if (!u) throw new Error("Not authenticated");
+  return u.uid;
+}
 
-// ─── Helper: strip undefined fields (Firestore rejects them) ─────────────────
+function storeCol(col: string) {
+  return collection(db, "stores", uid(), col);
+}
+
+function storeDoc(col: string, id: string) {
+  return doc(db, "stores", uid(), col, id);
+}
 
 function clean<T extends object>(obj: T): T {
   return Object.fromEntries(
@@ -87,31 +93,31 @@ function clean<T extends object>(obj: T): T {
   ) as T;
 }
 
+// Re-export db for any file that still imports it directly
+export { db } from "@/database/firebase";
+
 // ─── Products ────────────────────────────────────────────────────────────────
 
 export async function addProduct(data: Omit<Product, 'id' | 'created_at'>): Promise<string> {
-  const ref = await addDoc(productsCol(), clean({
-    ...data,
-    created_at: new Date().toISOString(),
-  }));
+  const ref = await addDoc(storeCol("products"), clean({ ...data, created_at: new Date().toISOString() }));
   return ref.id;
 }
 
 export async function updateProduct(id: string, data: Partial<Omit<Product, 'id' | 'created_at'>>): Promise<void> {
-  await updateDoc(doc(db, "products", id), clean(data));
+  await updateDoc(storeDoc("products", id), clean(data));
 }
 
 export async function deleteProduct(id: string): Promise<void> {
-  await deleteDoc(doc(db, "products", id));
+  await deleteDoc(storeDoc("products", id));
 }
 
 export async function getProducts(): Promise<Product[]> {
-  const snap = await getDocs(query(productsCol(), orderBy("created_at", "desc")));
+  const snap = await getDocs(query(storeCol("products"), orderBy("created_at", "desc")));
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
 }
 
 export function onProductsSnapshot(cb: (products: Product[]) => void): Unsubscribe {
-  return onSnapshot(query(productsCol(), orderBy("created_at", "desc")), snap => {
+  return onSnapshot(query(storeCol("products"), orderBy("created_at", "desc")), snap => {
     cb(snap.docs.map(d => ({ id: d.id, ...d.data() } as Product)));
   });
 }
@@ -119,7 +125,7 @@ export function onProductsSnapshot(cb: (products: Product[]) => void): Unsubscri
 // ─── Orders ──────────────────────────────────────────────────────────────────
 
 export async function createOrder(data: Omit<Order, 'id' | 'created_at' | 'is_void' | 'is_synced'>): Promise<string> {
-  const ref = await addDoc(ordersCol(), clean({
+  const ref = await addDoc(storeCol("orders"), clean({
     ...data,
     created_at: new Date().toISOString(),
     is_void: false,
@@ -129,29 +135,29 @@ export async function createOrder(data: Omit<Order, 'id' | 'created_at' | 'is_vo
 }
 
 export async function getOrders(): Promise<Order[]> {
-  const snap = await getDocs(query(ordersCol(), orderBy("created_at", "desc")));
+  const snap = await getDocs(query(storeCol("orders"), orderBy("created_at", "desc")));
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as Order));
 }
 
 export async function getOrderById(id: string): Promise<Order | undefined> {
-  const snap = await getDoc(doc(db, "orders", id));
+  const snap = await getDoc(storeDoc("orders", id));
   return snap.exists() ? { id: snap.id, ...snap.data() } as Order : undefined;
 }
 
 export async function updateOrder(id: string, data: Partial<Omit<Order, 'id' | 'created_at' | 'is_synced'>>): Promise<void> {
-  await updateDoc(doc(db, "orders", id), clean(data));
+  await updateDoc(storeDoc("orders", id), clean(data));
 }
 
 export async function updateOrderStatus(id: string, status: string): Promise<void> {
-  await updateDoc(doc(db, "orders", id), { status });
+  await updateDoc(storeDoc("orders", id), { status });
 }
 
 export async function voidOrder(id: string): Promise<void> {
-  await updateDoc(doc(db, "orders", id), { is_void: true });
+  await updateDoc(storeDoc("orders", id), { is_void: true });
 }
 
 export function onOrdersSnapshot(cb: (orders: Order[]) => void): Unsubscribe {
-  return onSnapshot(query(ordersCol(), orderBy("created_at", "desc")), snap => {
+  return onSnapshot(query(storeCol("orders"), orderBy("created_at", "desc")), snap => {
     cb(snap.docs.map(d => ({ id: d.id, ...d.data() } as Order)));
   });
 }
@@ -160,31 +166,27 @@ export function onOrdersSnapshot(cb: (orders: Order[]) => void): Unsubscribe {
 
 export async function saveOrderItems(items: Omit<OrderItem, 'id'>[]): Promise<void> {
   const batch = writeBatch(db);
-  items.forEach(item => {
-    batch.set(doc(orderItemsCol()), clean(item));
-  });
+  items.forEach(item => batch.set(doc(storeCol("order_items")), clean(item)));
   await batch.commit();
 }
 
 export async function getOrderItems(order_id: string): Promise<OrderItem[]> {
-  const snap = await getDocs(query(orderItemsCol(), where("order_id", "==", order_id)));
+  const snap = await getDocs(query(storeCol("order_items"), where("order_id", "==", order_id)));
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as OrderItem));
 }
 
 export async function replaceOrderItems(order_id: string, items: Omit<OrderItem, 'id'>[]): Promise<void> {
   const batch = writeBatch(db);
-  // Delete old items
-  const old = await getDocs(query(orderItemsCol(), where("order_id", "==", order_id)));
+  const old = await getDocs(query(storeCol("order_items"), where("order_id", "==", order_id)));
   old.docs.forEach(d => batch.delete(d.ref));
-  // Add new items
   const total = items.reduce((s, i) => s + i.subtotal, 0);
-  items.forEach(item => batch.set(doc(orderItemsCol()), clean(item)));
-  batch.update(doc(db, "orders", order_id), { total, is_synced: false });
+  items.forEach(item => batch.set(doc(storeCol("order_items")), clean(item)));
+  batch.update(storeDoc("orders", order_id), { total, is_synced: false });
   await batch.commit();
 }
 
 export function onOrderItemsSnapshot(order_id: string, cb: (items: OrderItem[]) => void): Unsubscribe {
-  return onSnapshot(query(orderItemsCol(), where("order_id", "==", order_id)), snap => {
+  return onSnapshot(query(storeCol("order_items"), where("order_id", "==", order_id)), snap => {
     cb(snap.docs.map(d => ({ id: d.id, ...d.data() } as OrderItem)));
   });
 }
@@ -192,78 +194,74 @@ export function onOrderItemsSnapshot(order_id: string, cb: (items: OrderItem[]) 
 // ─── Sync Queue ───────────────────────────────────────────────────────────────
 
 export async function addToSyncQueue(order_id: string): Promise<void> {
-  const existing = await getDocs(query(syncQueueCol(), where("order_id", "==", order_id), where("status", "==", "pending")));
+  const existing = await getDocs(query(storeCol("sync_queue"), where("order_id", "==", order_id), where("status", "==", "pending")));
   if (existing.empty) {
-    await addDoc(syncQueueCol(), clean({ order_id, created_at: new Date().toISOString(), status: "pending" }));
+    await addDoc(storeCol("sync_queue"), clean({ order_id, created_at: new Date().toISOString(), status: "pending" }));
   }
 }
 
 export async function requeueOrderSync(order_id: string): Promise<void> {
   const batch = writeBatch(db);
-  const existing = await getDocs(query(syncQueueCol(), where("order_id", "==", order_id)));
+  const existing = await getDocs(query(storeCol("sync_queue"), where("order_id", "==", order_id)));
   if (!existing.empty) {
     existing.docs.forEach(d => batch.update(d.ref, { status: "pending", action: "update" }));
   } else {
-    batch.set(doc(syncQueueCol()), clean({ order_id, created_at: new Date().toISOString(), status: "pending", action: "update" }));
+    batch.set(doc(storeCol("sync_queue")), clean({ order_id, created_at: new Date().toISOString(), status: "pending", action: "update" }));
   }
-  batch.update(doc(db, "orders", order_id), { is_synced: false });
+  batch.update(storeDoc("orders", order_id), { is_synced: false });
   await batch.commit();
 }
 
-export async function getPendingSyncItems(): Promise<SyncQueue[]> {
-  const snap = await getDocs(query(syncQueueCol(), where("status", "==", "pending")));
+export async function getFailedSyncItems(): Promise<SyncQueue[]> {
+  const snap = await getDocs(query(storeCol("sync_queue"), where("status", "in", ["pending", "failed"])));
   return snap.docs.map(d => ({ id: d.id, ...d.data() } as SyncQueue));
 }
 
-export async function getFailedSyncItems(): Promise<SyncQueue[]> {
-  const snap = await getDocs(query(syncQueueCol(), where("status", "in", ["pending", "failed"])));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as SyncQueue));
+export async function getPendingSyncItems(): Promise<SyncQueue[]> {
+  return getFailedSyncItems();
 }
 
 export async function markSyncDone(order_id: string): Promise<void> {
   const batch = writeBatch(db);
-  batch.update(doc(db, "orders", order_id), { is_synced: true });
-  const snap = await getDocs(query(syncQueueCol(), where("order_id", "==", order_id)));
+  batch.update(storeDoc("orders", order_id), { is_synced: true });
+  const snap = await getDocs(query(storeCol("sync_queue"), where("order_id", "==", order_id)));
   snap.docs.forEach(d => batch.update(d.ref, { status: "done" }));
   await batch.commit();
 }
 
 export async function markSyncFailed(order_id: string): Promise<void> {
-  const snap = await getDocs(query(syncQueueCol(), where("order_id", "==", order_id)));
+  const snap = await getDocs(query(storeCol("sync_queue"), where("order_id", "==", order_id)));
   const batch = writeBatch(db);
   snap.docs.forEach(d => batch.update(d.ref, { status: "failed" }));
   await batch.commit();
 }
 
 export async function getPendingSyncCount(): Promise<number> {
-  const snap = await getDocs(query(syncQueueCol(), where("status", "in", ["pending", "failed"])));
+  const snap = await getDocs(query(storeCol("sync_queue"), where("status", "in", ["pending", "failed"])));
   return snap.size;
 }
 
 // ─── Store Settings ───────────────────────────────────────────────────────────
 
 export async function getStoreSettings(): Promise<StoreSettings | undefined> {
-  const snap = await getDocs(settingsCol());
+  const snap = await getDocs(storeCol("store_settings"));
   if (snap.empty) return undefined;
   return { id: snap.docs[0].id, ...snap.docs[0].data() } as StoreSettings;
 }
 
 export async function saveStoreSettings(data: Omit<StoreSettings, 'id'>): Promise<void> {
-  const snap = await getDocs(settingsCol());
+  const snap = await getDocs(storeCol("store_settings"));
   const now = new Date().toISOString();
   if (!snap.empty) {
     await updateDoc(snap.docs[0].ref, clean({ ...data, updated_at: now }));
   } else {
-    await addDoc(settingsCol(), clean({ ...data, created_at: now, updated_at: now }));
+    await addDoc(storeCol("store_settings"), clean({ ...data, created_at: now, updated_at: now }));
   }
 }
 
 export function onSettingsSnapshot(cb: (settings: StoreSettings | undefined) => void): Unsubscribe {
-  return onSnapshot(settingsCol(), snap => {
+  return onSnapshot(storeCol("store_settings"), snap => {
     if (snap.empty) cb(undefined);
     else cb({ id: snap.docs[0].id, ...snap.docs[0].data() } as StoreSettings);
   });
 }
-
-// Re-export db for backwards compatibility
-export { db } from "@/database/firebase";
