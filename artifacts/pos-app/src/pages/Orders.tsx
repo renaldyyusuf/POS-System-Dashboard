@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   db, getOrderItems, voidOrder, updateOrder, replaceOrderItems, requeueOrderSync,
   type Order, type OrderItem,
 } from "@/database/db";
 import { getGasUrl, syncPendingOrders } from "@/services/syncService";
+import { getPendingSyncCount } from "@/database/db";
 import { formatCurrency, formatDateTime } from "@/utils/format";
 import {
   FileText, Search, Eye, Pencil, Ban, ShoppingBag, Bike,
   User, Phone, Calendar, CreditCard, StickyNote, MapPin,
-  MessageSquare, ChevronDown, AlertTriangle, Plus, Minus, Trash2, Package,ShoppingCart,
+  MessageSquare, ChevronDown, AlertTriangle, Plus, Minus, Trash2, Package, ShoppingCart,
+  RefreshCw, CloudOff,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -634,7 +636,22 @@ export default function Orders() {
   const [filter, setFilter]       = useState<FilterTab>("all");
   const [viewOrder, setViewOrder] = useState<Order | null>(null);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
-  const [voidTarget, setVoidTarget] = useState<Order | null>(null);
+  const [voidTarget, setVoidTarget]   = useState<Order | null>(null);
+  const [isSyncing, setIsSyncing]     = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [isOnline, setIsOnline]         = useState(navigator.onLine);
+
+  useEffect(() => {
+    getPendingSyncCount().then(setPendingCount);
+    const onOnline  = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online",  onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online",  onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   const orders = useLiveQuery(() =>
     db.orders.orderBy("created_at").reverse().toArray()
@@ -650,6 +667,35 @@ export default function Orders() {
       (filter === "ojol"   && o.fulfillment_method === "ojol");
     return matchesSearch && matchesFilter;
   });
+
+  const handleSync = async () => {
+    const url = getGasUrl();
+    if (!url) {
+      toast({ title: "URL belum dikonfigurasi", description: "Atur Google Sheets di Pengaturan Toko.", variant: "destructive" });
+      return;
+    }
+    if (!isOnline) {
+      toast({ title: "Tidak ada koneksi internet", variant: "destructive" });
+      return;
+    }
+    setIsSyncing(true);
+    try {
+      const result = await syncPendingOrders(url);
+      const newCount = await getPendingSyncCount();
+      setPendingCount(newCount);
+      toast({
+        title: result.synced > 0 ? "Sinkronisasi selesai" : "Tidak ada yang perlu disinkronkan",
+        description: result.synced > 0
+          ? `${result.synced} pesanan berhasil disinkronkan.`
+          : result.failed > 0 ? `${result.failed} pesanan gagal — periksa URL endpoint.`
+          : "Semua pesanan sudah tersinkronisasi.",
+      });
+    } catch {
+      toast({ title: "Sinkronisasi gagal", variant: "destructive" });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const handleVoid = async () => {
     if (!voidTarget?.id) return;
@@ -674,9 +720,32 @@ export default function Orders() {
 
   return (
     <div className="space-y-5 animate-in fade-in duration-500">
-      <div>
-        <h1 className="text-3xl font-display font-bold text-foreground">Pesanan</h1>
-        <p className="text-muted-foreground mt-1">Lihat, kelola, dan pantau semua pesanan pelanggan.</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-display font-bold text-foreground">Pesanan</h1>
+          <p className="text-muted-foreground mt-1">Lihat, kelola, dan pantau semua pesanan pelanggan.</p>
+        </div>
+        <button
+          onClick={handleSync}
+          disabled={isSyncing}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all ${
+            pendingCount > 0
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+              : "border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
+          } disabled:opacity-50`}
+        >
+          {isSyncing
+            ? <RefreshCw size={14} className="animate-spin" />
+            : <RefreshCw size={14} />
+          }
+          {pendingCount > 0 && (
+            <span className="flex items-center gap-1">
+              <CloudOff size={13} />
+              {pendingCount}
+            </span>
+          )}
+          {isSyncing ? "Menyinkronkan..." : "Sinkronkan"}
+        </button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">

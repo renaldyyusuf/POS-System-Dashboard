@@ -3,6 +3,7 @@ import { db, type StoreSettings } from "@/database/db";
 import {
   Save, Store, Phone, MapPin, Building2, CreditCard,
   User, FileText, CheckCircle2, Plus, Trash2, QrCode, Upload, X,
+  RefreshCw, Wifi, WifiOff, Sheet, CloudOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import {
+  getGasUrl, setGasUrl, syncPendingOrders, testGasConnection,
+} from "@/services/syncService";
+import { getPendingSyncCount } from "@/database/db";
 
 // ── Bank account type ──────────────────────────────────────────────────────
 
@@ -162,9 +167,29 @@ function BankAccountCard({
 export default function StoreSettings() {
   const [form, setForm]         = useState<FormData>(defaultForm());
   const [accounts, setAccounts] = useState<BankAccount[]>([newAccount()]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved]       = useState(false);
+  const [isSaving, setIsSaving]     = useState(false);
+  const [saved, setSaved]           = useState(false);
   const { toast } = useToast();
+
+  // ── Google Sheets sync state ───────────────────────────────────────────
+  const [gasUrlInput, setGasUrlInput]   = useState(getGasUrl);
+  const [isSyncing, setIsSyncing]       = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [isOnline, setIsOnline]         = useState(navigator.onLine);
+  const [testStatus, setTestStatus]     = useState<"idle"|"testing"|"ok"|"fail">("idle");
+  const [gasSaved, setGasSaved]         = useState(false);
+
+  useEffect(() => {
+    getPendingSyncCount().then(setPendingCount);
+    const onOnline  = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online",  onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online",  onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   useEffect(() => {
     getStoreSettings().then(settings => {
@@ -223,6 +248,44 @@ export default function StoreSettings() {
 
   const handleRemoveAccount = (id: string) => {
     setAccounts(prev => prev.filter(a => a.id !== id));
+  };
+
+  const handleSaveGasUrl = () => {
+    setGasUrl(gasUrlInput);
+    setGasSaved(true);
+    setTestStatus("idle");
+    toast({ title: "URL disimpan", description: "Endpoint Google Sheets berhasil dikonfigurasi." });
+    setTimeout(() => setGasSaved(false), 3000);
+  };
+
+  const handleTestConnection = async () => {
+    if (!gasUrlInput) return;
+    setTestStatus("testing");
+    const ok = await testGasConnection(gasUrlInput);
+    setTestStatus(ok ? "ok" : "fail");
+    setTimeout(() => setTestStatus("idle"), 4000);
+  };
+
+  const handleManualSync = async () => {
+    const url = getGasUrl();
+    if (!url) { toast({ title: "URL belum dikonfigurasi", variant: "destructive" }); return; }
+    if (!isOnline) { toast({ title: "Tidak ada koneksi internet", variant: "destructive" }); return; }
+    setIsSyncing(true);
+    try {
+      const result = await syncPendingOrders(url);
+      const newCount = await getPendingSyncCount();
+      setPendingCount(newCount);
+      toast({
+        title: result.synced > 0 ? "Sinkronisasi selesai" : "Tidak ada yang perlu disinkronkan",
+        description: result.synced > 0 ? `${result.synced} pesanan berhasil disinkronkan.`
+          : result.failed > 0 ? `${result.failed} pesanan gagal — periksa URL endpoint.`
+          : "Semua pesanan sudah tersinkronisasi.",
+      });
+    } catch {
+      toast({ title: "Sinkronisasi gagal", variant: "destructive" });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleSave = async () => {
@@ -405,6 +468,163 @@ export default function StoreSettings() {
             value={form.additional_notes}
             onChange={e => setField("additional_notes", e.target.value)}
           />
+        </CardContent>
+      </Card>
+
+
+      {/* Google Sheets Sync */}
+      <Card className="bg-card border-border shadow-lg shadow-black/10">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sheet size={16} className="text-primary" />
+            Sinkronisasi Google Sheets
+          </CardTitle>
+          <CardDescription>
+            Pesanan otomatis dikirim ke Google Sheets saat terhubung ke internet.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+
+          {/* Status bar */}
+          <div className="flex flex-wrap gap-2">
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium ${
+              isOnline
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+                : "bg-secondary border-border text-muted-foreground"
+            }`}>
+              {isOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
+              {isOnline ? "Terhubung ke internet" : "Offline"}
+            </div>
+            {pendingCount > 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400 text-xs font-medium">
+                <CloudOff size={13} />
+                {pendingCount} pesanan belum tersinkronisasi
+              </div>
+            )}
+          </div>
+
+          {/* URL input */}
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Google Apps Script Endpoint URL</Label>
+            <div className="flex gap-2">
+              <Input
+                placeholder="https://script.google.com/macros/s/..."
+                className="bg-background border-border text-sm font-mono flex-1"
+                value={gasUrlInput}
+                onChange={e => { setGasUrlInput(e.target.value); setTestStatus("idle"); }}
+              />
+              <Button
+                variant="outline"
+                className={`shrink-0 border-border transition-colors ${
+                  testStatus === "ok"   ? "border-emerald-500/50 text-emerald-400" :
+                  testStatus === "fail" ? "border-destructive/50 text-destructive" : ""
+                }`}
+                disabled={!gasUrlInput || testStatus === "testing"}
+                onClick={handleTestConnection}
+              >
+                {testStatus === "testing" ? <RefreshCw size={13} className="animate-spin" />
+                  : testStatus === "ok"   ? "✓ OK"
+                  : testStatus === "fail" ? "✗ Gagal"
+                  : "Tes"}
+              </Button>
+              <Button
+                className={`shrink-0 font-bold transition-all ${gasSaved ? "bg-emerald-600 hover:bg-emerald-500" : ""}`}
+                disabled={!gasUrlInput}
+                onClick={handleSaveGasUrl}
+              >
+                {gasSaved ? <><CheckCircle2 size={13} className="mr-1.5" />Tersimpan</> : "Simpan URL"}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Deploy Apps Script sebagai Web App dengan <strong>Execute as: Me</strong> dan <strong>Who has access: Anyone</strong>.
+            </p>
+          </div>
+
+          {/* Sync now button */}
+          <div className="flex items-center gap-3 pt-1">
+            <Button
+              variant="outline"
+              className="border-border gap-2"
+              disabled={isSyncing || !getGasUrl() || !isOnline}
+              onClick={handleManualSync}
+            >
+              <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
+              {isSyncing ? "Menyinkronkan..." : "Sinkronkan Sekarang"}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              {!getGasUrl() ? "Simpan URL terlebih dahulu"
+                : !isOnline ? "Tidak ada koneksi internet"
+                : pendingCount > 0 ? `${pendingCount} pesanan menunggu sinkronisasi`
+                : "Semua pesanan sudah tersinkronisasi ✓"}
+            </p>
+          </div>
+
+          <Separator />
+
+          {/* Apps Script template */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Template Apps Script
+              </p>
+              <button
+                onClick={() => {
+                  const code = document.getElementById("gas-code-settings")?.textContent ?? "";
+                  navigator.clipboard.writeText(code).then(() => {
+                    const btn = document.getElementById("copy-gas-settings-btn");
+                    if (btn) { btn.textContent = "✓ Tersalin!"; setTimeout(() => { btn.textContent = "Salin"; }, 2000); }
+                  });
+                }}
+                id="copy-gas-settings-btn"
+                className="text-[11px] font-semibold text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/15 border border-primary/20 px-2.5 py-1 rounded-md transition-colors"
+              >
+                Salin
+              </button>
+            </div>
+            <pre id="gas-code-settings" className="text-[10px] text-muted-foreground leading-relaxed overflow-y-auto overflow-x-auto whitespace-pre max-h-[180px] bg-background/50 border border-border/40 rounded-lg p-3">{`function doPost(e) {
+  try {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow([
+        "No. Pesanan", "Nama", "Item", "Quantity", "Harga Satuan",
+        "Harga Total", "Metode Pembayaran",
+        "Tanggal Pesanan Diambil", "Metode Pengiriman",
+        "Alamat Pengantaran"
+      ]);
+      sheet.getRange(1, 1, 1, 10).setFontWeight("bold");
+    }
+    var data = JSON.parse(e.postData.contents);
+    if (data.ping) {
+      return ContentService.createTextOutput(
+        JSON.stringify({ok:true})).setMimeType(ContentService.MimeType.JSON);
+    }
+    if (data.action === "update" && data.order_id) {
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+        for (var i = ids.length - 1; i >= 0; i--) {
+          if (String(ids[i][0]) === String(data.order_id)) {
+            sheet.deleteRow(i + 2);
+          }
+        }
+      }
+    }
+    data.rows.forEach(function(row) {
+      sheet.appendRow([
+        data.order_id, row.customer_name, row.product_name,
+        row.qty, row.unit_price, row.subtotal, row.payment_method,
+        row.ready_date, row.fulfillment_method, row.delivery_address
+      ]);
+    });
+    return ContentService.createTextOutput(
+      JSON.stringify({ok:true})).setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(
+      JSON.stringify({ok:false,error:err.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}`}</pre>
+          </div>
         </CardContent>
       </Card>
 

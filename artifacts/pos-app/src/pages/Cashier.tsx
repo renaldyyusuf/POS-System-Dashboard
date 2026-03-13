@@ -2,14 +2,13 @@ import { useEffect, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
   db, createOrder, saveOrderItems, addToSyncQueue,
-  getPendingSyncCount, type Product,
+  type Product,
 } from "@/database/db";
 import { useCart, type CartItem } from "@/hooks/useCart";
 import { formatCurrency } from "@/utils/format";
 import {
   Search, Trash2, ShoppingCart, Package, Plus, Minus, X,
-  Bike, ShoppingBag, Save, AlertCircle, RefreshCw, Settings2,
-  Wifi, WifiOff, CloudOff,
+  Bike, ShoppingBag, Save, AlertCircle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -28,7 +27,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { ReceiptModal, type ReceiptData } from "@/components/ReceiptModal";
 import {
-  getGasUrl, setGasUrl, syncPendingOrders, startAutoSync, testGasConnection,
+  getGasUrl, syncPendingOrders, startAutoSync,
 } from "@/services/syncService";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -72,13 +71,7 @@ export default function Cashier() {
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
 
   // Google Sheets sync state
-  const [gasUrl, setGasUrlState] = useState(getGasUrl());
-  const [showSyncSettings, setShowSyncSettings] = useState(false);
-  const [syncUrlInput, setSyncUrlInput] = useState(getGasUrl());
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [testStatus, setTestStatus] = useState<"idle" | "testing" | "ok" | "fail">("idle");
+  const [gasUrl] = useState(getGasUrl);
 
   const { toast } = useToast();
   const cart = useCart();
@@ -100,21 +93,8 @@ export default function Cashier() {
   // ── Lifecycle ──────────────────────────────────────────────────────────
 
   useEffect(() => {
-    // Start auto-sync and track online status
     const cleanup = startAutoSync();
-    const handleOnline  = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-
-    // Refresh pending count on mount
-    getPendingSyncCount().then(setPendingCount);
-
-    return () => {
-      cleanup();
-      window.removeEventListener("online", handleOnline);
-      window.removeEventListener("offline", handleOffline);
-    };
+    return cleanup;
   }, []);
 
   // ── Handlers ───────────────────────────────────────────────────────────
@@ -169,16 +149,12 @@ export default function Cashier() {
 
       // ── Enqueue for Google Sheets sync ──────────────────────────────
       await addToSyncQueue(orderId);
-      const newCount = await getPendingSyncCount();
-      setPendingCount(newCount);
 
       // Try to sync immediately if online and URL is configured
       if (navigator.onLine && gasUrl) {
         syncPendingOrders(gasUrl)
           .then(async result => {
             if (result.synced > 0) {
-              const c = await getPendingSyncCount();
-              setPendingCount(c);
             }
           })
           .catch(() => {});
@@ -209,45 +185,8 @@ export default function Cashier() {
     }
   };
 
-  const handleManualSync = async () => {
-    if (!gasUrl) { setShowSyncSettings(true); return; }
-    if (!isOnline) {
-      toast({ title: "Tidak ada koneksi", description: "Hubungkan ke internet dan coba lagi.", variant: "destructive" });
-      return;
-    }
-    setIsSyncing(true);
-    try {
-      const result = await syncPendingOrders(gasUrl);
-      const newCount = await getPendingSyncCount();
-      setPendingCount(newCount);
-      toast({
-        title: result.synced > 0 ? "Sinkronisasi selesai" : "Tidak ada yang perlu disinkronkan",
-        description: result.synced > 0
-          ? `${result.synced} order${result.synced !== 1 ? "s" : ""} synced to Google Sheets.`
-          : result.failed > 0 ? `${result.failed} pesanan gagal — periksa URL endpoint Anda.` : "Semua pesanan sudah tersinkronisasi.",
-        variant: result.failed > 0 ? "destructive" : "default",
-      });
-    } catch {
-      toast({ title: "Sinkronisasi gagal", variant: "destructive" });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
-  const handleSaveSyncUrl = () => {
-    setGasUrl(syncUrlInput);
-    setGasUrlState(syncUrlInput);
-    setShowSyncSettings(false);
-    toast({ title: "Endpoint disimpan", description: "URL sinkronisasi Google Sheets telah dikonfigurasi." });
-  };
 
-  const handleTestConnection = async () => {
-    if (!syncUrlInput) return;
-    setTestStatus("testing");
-    const ok = await testGasConnection(syncUrlInput);
-    setTestStatus(ok ? "ok" : "fail");
-    setTimeout(() => setTestStatus("idle"), 4000);
-  };
 
   const setField = <K extends keyof OrderForm>(key: K, val: OrderForm[K]) =>
     setForm(prev => ({ ...prev, [key]: val }));
@@ -272,36 +211,7 @@ export default function Cashier() {
             />
           </div>
 
-          {/* Sync button */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleManualSync}
-              disabled={isSyncing}
-              title={gasUrl ? "Sinkronkan ke Google Sheets" : "Atur sinkronisasi Google Sheets"}
-              className={`h-11 px-3 rounded-lg border flex items-center gap-1.5 text-xs font-medium transition-colors ${
-                pendingCount > 0
-                  ? "border-amber-500/40 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
-                  : "border-border bg-card text-muted-foreground hover:bg-secondary"
-              }`}
-            >
-              {isSyncing
-                ? <RefreshCw size={14} className="animate-spin" />
-                : isOnline
-                  ? <Wifi size={14} />
-                  : <WifiOff size={14} />
-              }
-              {pendingCount > 0 && (
-                <span className="font-bold">{pendingCount}</span>
-              )}
-            </button>
-            <button
-              onClick={() => { setSyncUrlInput(gasUrl); setShowSyncSettings(true); }}
-              title="Pengaturan sinkronisasi"
-              className="h-11 w-11 rounded-lg border border-border bg-card flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
-            >
-              <Settings2 size={15} />
-            </button>
-          </div>
+
         </div>
 
         {/* Products */}
@@ -681,179 +591,18 @@ export default function Cashier() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Google Sheets Sync Settings ── */}
-      <Dialog open={showSyncSettings} onOpenChange={setShowSyncSettings}>
-        <DialogContent className="sm:max-w-[560px] bg-card border-border max-h-[90vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <RefreshCw size={16} className="text-primary" /> Google Sheets Sync
-            </DialogTitle>
-            <DialogDescription>
-              Paste your Google Apps Script Web App URL below. Orders will be synced automatically when online.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="overflow-y-auto flex-1 pr-1">
-          <div className="space-y-4 py-2">
-            {/* Status */}
-            <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-sm ${
-              isOnline
-                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                : "bg-secondary border-border text-muted-foreground"
-            }`}>
-              {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
-              <span>{isOnline ? "Terhubung ke internet" : "Offline — sinkronisasi otomatis saat terhubung"}</span>
-            </div>
-
-            {pendingCount > 0 && (
-              <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-amber-400 text-sm">
-                <CloudOff size={14} />
-                <span>{pendingCount} order{pendingCount !== 1 ? "s" : ""} pending sync</span>
-              </div>
-            )}
-
-            <div className="space-y-1.5">
-              <Label>Google Apps Script Endpoint URL</Label>
-              <Input
-                placeholder="https://script.google.com/macros/s/your-id/exec"
-                className="bg-background border-border text-sm font-mono"
-                value={syncUrlInput}
-                onChange={e => setSyncUrlInput(e.target.value)}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Deploy your Apps Script as a Web App with <strong>Execute as: Me</strong> and <strong>Who has access: Anyone</strong>.
-              </p>
-            </div>
-
-            {/* GAS code hint */}
-            <div className="rounded-lg bg-background border border-border p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Apps Script Template
-                </p>
-                <button
-                  onClick={() => {
-                    const code = document.getElementById("gas-code-block")?.textContent ?? "";
-                    navigator.clipboard.writeText(code).then(() => {
-                      const btn = document.getElementById("copy-gas-btn");
-                      if (btn) { btn.textContent = "✓ Copied!"; setTimeout(() => { btn.textContent = "Salin"; }, 2000); }
-                    });
-                  }}
-                  id="copy-gas-btn"
-                  className="text-[11px] font-semibold text-primary hover:text-primary/80 bg-primary/10 hover:bg-primary/15 border border-primary/20 px-2.5 py-1 rounded-md transition-colors"
-                >
-                  Copy
-                </button>
-              </div>
-              <pre id="gas-code-block" className="text-[10px] text-muted-foreground leading-relaxed overflow-y-auto overflow-x-auto whitespace-pre max-h-[200px] bg-background/50 rounded p-1">{`function doPost(e) {
-  try {
-    var sheet = SpreadsheetApp.getActiveSheet();
-
-    // Add header row if sheet is empty
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow([
-        "No. Pesanan", "Nama", "Item", "Quantity", "Harga Satuan",
-        "Harga Total", "Metode Pembayaran",
-        "Tanggal Pesanan Diambil", "Metode Pengiriman",
-        "Alamat Pengantaran"
-      ]);
-      sheet.getRange(1, 1, 1, 10).setFontWeight("bold");
-    }
-
-    var data = JSON.parse(e.postData.contents);
-    if (data.ping) {
-      return ContentService.createTextOutput(
-        JSON.stringify({ok:true})).setMimeType(
-        ContentService.MimeType.JSON);
-    }
-
-    // Jika pesanan diedit, hapus semua baris lama dengan No. Pesanan yang sama
-    if (data.action === "update" && data.order_id) {
-      var lastRow = sheet.getLastRow();
-      if (lastRow > 1) {
-        var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-        for (var i = ids.length - 1; i >= 0; i--) {
-          if (String(ids[i][0]) === String(data.order_id)) {
-            sheet.deleteRow(i + 2);
-          }
-        }
-      }
-    }
-
-    // Tulis data baru
-    data.rows.forEach(function(row) {
-      sheet.appendRow([
-        data.order_id,
-        row.customer_name,
-        row.product_name,
-        row.qty,
-        row.unit_price,
-        row.subtotal,
-        row.payment_method,
-        row.ready_date,
-        row.fulfillment_method,
-        row.delivery_address
-      ]);
-    });
-
-    return ContentService.createTextOutput(
-      JSON.stringify({ok:true})).setMimeType(
-      ContentService.MimeType.JSON);
-  } catch(err) {
-    return ContentService.createTextOutput(
-      JSON.stringify({ok:false,error:err.toString()}))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}`}</pre>
-            </div>
-          </div>
-          </div>
-
-          <DialogFooter className="gap-2 flex-wrap shrink-0">
-            <Button variant="ghost" onClick={() => setShowSyncSettings(false)}>Batal</Button>
-            {syncUrlInput && (
-              <Button
-                variant="outline"
-                className={`border-border ${
-                  testStatus === "ok"   ? "border-emerald-500/50 text-emerald-400" :
-                  testStatus === "fail" ? "border-destructive/50 text-destructive" : ""
-                }`}
-                disabled={testStatus === "testing"}
-                onClick={handleTestConnection}
-              >
-                {testStatus === "testing" ? "Menguji..." :
-                 testStatus === "ok"      ? "✓ Reachable!" :
-                 testStatus === "fail"    ? "✗ Failed" :
-                 "Tes Koneksi"}
-              </Button>
-            )}
-            {pendingCount > 0 && syncUrlInput && (
-              <Button
-                variant="outline"
-                className="border-border"
-                onClick={() => { handleSaveSyncUrl(); setTimeout(handleManualSync, 100); }}
-              >
-                Save & Sync Now
-              </Button>
-            )}
-            <Button onClick={handleSaveSyncUrl} className="font-bold">
-              Save URL
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* ── Clear Cart Confirmation ── */}
       <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
         <AlertDialogContent className="bg-card border-border">
           <AlertDialogHeader>
-            <AlertDialogTitle>Clear Cart</AlertDialogTitle>
+            <AlertDialogTitle>Kosongkan Keranjang</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove all {cart.items.length} item{cart.items.length !== 1 ? "s" : ""} from the cart. Are you sure?
+              Semua {cart.items.length} item di keranjang akan dihapus. Lanjutkan?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-background border-border hover:bg-secondary">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-background border-border hover:bg-secondary">Batal</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
               onClick={() => { cart.clearCart(); setShowClearConfirm(false); }}
