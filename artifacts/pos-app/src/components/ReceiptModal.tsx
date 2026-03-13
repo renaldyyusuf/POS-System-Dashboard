@@ -89,7 +89,11 @@ export function ReceiptModal({
 }) {
   const isOjol = receipt.fulfillmentMethod === "ojol";
   const message = buildWhatsAppMessage(receipt);
-  const phone = receipt.customerPhone.replace(/\D/g, "");
+  // Normalize to Indonesian format: 08xx → 628xx, already 62xx stays
+  const rawPhone = receipt.customerPhone.replace(/\D/g, "");
+  const phone = rawPhone.startsWith("62") ? rawPhone
+    : rawPhone.startsWith("0") ? "62" + rawPhone.slice(1)
+    : rawPhone ? "62" + rawPhone : "";
   const waUrl = phone
     ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
     : `https://wa.me/?text=${encodeURIComponent(message)}`;
