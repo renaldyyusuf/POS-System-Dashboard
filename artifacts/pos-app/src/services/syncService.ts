@@ -1,5 +1,4 @@
 import {
-  db,
   markSyncDone,
   markSyncFailed,
   getOrderItems,
@@ -55,16 +54,13 @@ export async function syncPendingOrders(gasUrl?: string): Promise<SyncResult> {
 
   if (!url) return result;
 
-  const pending = await db.sync_queue
-    .where('status')
-    .anyOf(['pending', 'failed'])
-    .toArray();
+  const pending = await (await import('@/database/db')).getFailedSyncItems();
 
   if (pending.length === 0) return result;
 
   for (const syncItem of pending) {
     try {
-      const order = await db.orders.get(syncItem.order_id);
+      const order = await (await import('@/database/db')).getOrderById(syncItem.order_id);
       if (!order || order.is_void) {
         await markSyncDone(syncItem.order_id);
         result.skipped++;
