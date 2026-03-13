@@ -651,6 +651,7 @@ function EditModal({ order, onClose }: { order: Order; onClose: () => void }) {
 
 function OrderReceiptModal({ order, onClose }: { order: Order; onClose: () => void }) {
   const items = useLiveQuery(() => order.id ? getOrderItems(order.id) : [], [order.id]) ?? [];
+  const storeSettings = useLiveQuery(() => db.store_settings.toCollection().first());
 
   const receipt: ReceiptData = {
     orderId:           order.id!,
@@ -669,7 +670,10 @@ function OrderReceiptModal({ order, onClose }: { order: Order; onClose: () => vo
       price:        i.price,
       subtotal:     i.subtotal,
     })),
-    total: order.total,
+    total:        order.total,
+    storeName:    storeSettings?.store_name,
+    storeAddress: storeSettings?.store_address,
+    mapsUrl:      storeSettings?.maps_url,
   };
 
   return <ReceiptModal receipt={receipt} onClose={onClose} />;

@@ -3,7 +3,7 @@ import { db, type StoreSettings } from "@/database/db";
 import {
   Save, Store, Phone, MapPin, Building2, CreditCard,
   User, FileText, CheckCircle2, Plus, Trash2, QrCode, Upload, X,
-  RefreshCw, Wifi, WifiOff, Sheet, CloudOff,
+  RefreshCw, Wifi, WifiOff, Sheet, CloudOff, Link,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,7 @@ const defaultForm = (): FormData => ({
   additional_notes: "",
   bank_accounts: "[]",
   qris_image: "",
+  maps_url: "",
 });
 
 // ── DB helpers ─────────────────────────────────────────────────────────────
@@ -204,6 +205,7 @@ export default function StoreSettings() {
         additional_notes:     settings.additional_notes,
         bank_accounts:        settings.bank_accounts ?? "[]",
         qris_image:           settings.qris_image ?? "",
+        maps_url:             settings.maps_url ?? "",
       });
 
       const parsed = parseBankAccounts(settings.bank_accounts);
@@ -352,6 +354,24 @@ export default function StoreSettings() {
               value={form.store_address}
               onChange={e => setField("store_address", e.target.value)}
             />
+          </FieldRow>
+          <FieldRow icon={<Link size={14} />} label="Titik Google Maps">
+            <Input
+              placeholder="https://maps.app.goo.gl/... atau https://goo.gl/maps/..."
+              className="bg-background border-border"
+              value={form.maps_url}
+              onChange={e => setField("maps_url", e.target.value)}
+            />
+            {form.maps_url && (
+              <a
+                href={form.maps_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline mt-1"
+              >
+                <MapPin size={11} /> Lihat di Google Maps
+              </a>
+            )}
           </FieldRow>
         </CardContent>
       </Card>

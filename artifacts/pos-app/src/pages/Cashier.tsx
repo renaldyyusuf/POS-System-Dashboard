@@ -174,6 +174,9 @@ export default function Cashier() {
         notes: form.notes,
         items: orderItems,
         total: grandTotal,
+        storeName:    storeSettings?.store_name,
+        storeAddress: storeSettings?.store_address,
+        mapsUrl:      storeSettings?.maps_url,
       });
 
       cart.clearCart();
