@@ -264,3 +264,6 @@ export function onSettingsSnapshot(cb: (settings: StoreSettings | undefined) => 
     else cb({ id: snap.docs[0].id, ...snap.docs[0].data() } as StoreSettings);
   });
 }
+
+// Re-export db for backwards compatibility
+export { db } from "@/database/firebase";
