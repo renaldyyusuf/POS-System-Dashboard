@@ -83,6 +83,10 @@ export default function Cashier() {
   const { toast } = useToast();
   const cart = useCart();
 
+  // Load QRIS image from store settings to enable/disable QRIS payment
+  const storeSettings = useLiveQuery(() => db.store_settings.toCollection().first());
+  const qrisImage = storeSettings?.qris_image ?? "";
+
   const products = useLiveQuery(() => db.products.toArray(), []) || [];
 
   const filteredProducts = products.filter(p =>
@@ -376,20 +380,19 @@ export default function Cashier() {
               </div>
             ) : (
               <div className="space-y-1">
-                <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pb-1">
+                <div className="grid grid-cols-[1fr_auto_auto] gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pb-1">
                   <span>Product</span>
                   <span className="text-center w-20">Qty</span>
-                  <span className="text-right w-16">Price</span>
-                  <span className="text-right w-18">Subtotal</span>
+                  <span className="text-right">Subtotal</span>
                 </div>
                 {cart.items.map((item: CartItem) => (
                   <div
                     key={item.product_id}
-                    className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center bg-background/50 rounded-lg px-2 py-2 border border-border/40"
+                    className="grid grid-cols-[1fr_auto_auto] gap-2 items-center bg-background/50 rounded-lg px-2 py-2 border border-border/40"
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-medium leading-snug truncate">{item.product_name}</p>
-                      <p className="text-[11px] text-muted-foreground">{item.portion_size}</p>
+                      <p className="text-[11px] text-muted-foreground">{item.portion_size} · {formatCurrency(item.price)}</p>
                     </div>
                     <div className="flex items-center gap-1 bg-secondary rounded-md p-0.5 w-20">
                       <button
@@ -406,10 +409,7 @@ export default function Cashier() {
                         <Plus size={11} />
                       </button>
                     </div>
-                    <span className="text-sm text-muted-foreground text-right w-16 tabular-nums">
-                      {formatCurrency(item.price)}
-                    </span>
-                    <div className="flex items-center gap-1 w-18 justify-end">
+                    <div className="flex items-center gap-1 justify-end">
                       <span className="text-sm font-bold text-foreground tabular-nums">
                         {formatCurrency(item.price * item.qty)}
                       </span>
@@ -467,20 +467,38 @@ export default function Cashier() {
             <div className="space-y-1.5">
               <Label className="text-xs">Payment Method</Label>
               <div className="grid grid-cols-2 gap-2">
-                {(["Transfer", "QRIS"] as PaymentMethod[]).map(method => (
-                  <button
-                    key={method}
+                <button
                     type="button"
-                    onClick={() => setField("payment_method", method)}
+                    onClick={() => setField("payment_method", "Transfer")}
                     className={`py-2.5 rounded-lg text-sm font-semibold border-2 transition-all ${
-                      form.payment_method === method
+                      form.payment_method === "Transfer"
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border bg-background text-muted-foreground hover:border-primary/40"
                     }`}
                   >
-                    {method === "Transfer" ? "💳 Transfer" : "📱 QRIS"}
+                    💳 Transfer
                   </button>
-                ))}
+                  <div className="relative group">
+                    <button
+                      type="button"
+                      onClick={() => qrisImage ? setField("payment_method", "QRIS") : undefined}
+                      disabled={!qrisImage}
+                      className={`w-full py-2.5 rounded-lg text-sm font-semibold border-2 transition-all ${
+                        !qrisImage
+                          ? "border-border/40 bg-background/50 text-muted-foreground/40 cursor-not-allowed"
+                          : form.payment_method === "QRIS"
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background text-muted-foreground hover:border-primary/40"
+                      }`}
+                    >
+                      📱 QRIS
+                    </button>
+                    {!qrisImage && (
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-popover border border-border rounded-lg text-[11px] text-muted-foreground whitespace-nowrap shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                        Upload QRIS di Pengaturan Toko dulu
+                      </div>
+                    )}
+                  </div>
               </div>
             </div>
 
