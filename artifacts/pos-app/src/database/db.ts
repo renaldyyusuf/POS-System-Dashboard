@@ -114,6 +114,17 @@ export class SmartPOSDatabase extends Dexie {
         if (!s.qris_image) s.qris_image = '';
       });
     });
+    this.version(5).stores({
+      products: '++id, name, price, portion_size, created_at',
+      orders: '++id, customer_name, customer_phone, created_at, ready_date, payment_method, total, status, fulfillment_method, is_void, is_synced',
+      order_items: '++id, order_id, product_name, qty, price, subtotal',
+      sync_queue: '++id, order_id, created_at, status',
+      store_settings: '++id',
+    }).upgrade(tx => {
+      return tx.table('store_settings').toCollection().modify((s: any) => {
+        if (s.maps_url === undefined) s.maps_url = '';
+      });
+    });
   }
 }
 
